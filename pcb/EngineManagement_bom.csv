@@ -1,0 +1,95 @@
+Source,/Users/ieb/timefields/PlatformIO/Projects/EngineManagement/pcb/EngineManagement.sch
+Kicad Rev,Eeschema 4.0.6
+Generated Date,Monday, 09 August 2021 'pmt' 14:41:13
+
+Title,Not Set
+Company,Not Set
+Revision,Not Set
+Date Issue,Not Set
+
+
+[x] P5,LCD,conn,CONN_4, Headers from stock, Order EBAY 4x20 i2c
+[ ] U2,DPDTRelay,1966260,device,DPDTRelay, Order RS
+[ ] U6,MCP23008,device,MCP23008, Oder RS
+[ ] R25,1M,device,R, Order RS
+
+[x] Deutch 6 way plug ordered EBAy
+[x] Deutch 6 way plug Stock
+[x] Deutch 8 way plug ordered EBAy
+[ ] Box (space available for 130*225 or 245 at a crush)
+[ ] Wire
+[X] 4 12v relays stock.
+[X] 10A 1KV diodes, ebay
+
+Reference,Value,RS Number,Library,Library Ref
+F1,FUSE 5A,device,FUSE,  Crmp Holders
+D1,SMBJ30CA-TR TSV,device,DIODE, On boat or RS
+P1,Buttons,conn,CONN_6,   2xway from stock
+U3,ArdinoMinPro,device,ArdinoMinPro, from stock
+R19,10K,device,R, from stock
+R23,1K,device,R, from stock
+R22,100K,device,R, from stock
+C4,10nF,device,C, from stock
+R24,1K,device,R, from stock
+R21,100K,device,R, from stock
+C5,10nF,device,C, from stock
+R25,1M,device,R, Order EBAY
+R26,470K,device,R, from stock
+C6,1nF,device,C, from stock
+R27,1M,device,R, Order EBAY
+R28,470K,device,R, from stock
+C7,1nF,device,C, from stock
+R29,1M,device,R, Order EBAY
+R30,470K,device,R, from stock
+C8,1nF,device,C, from stock
+R31,1M,device,R, Order EBAY
+R32,470K,device,R, from stock
+C9,1nF,device,C, from stock
+U1,LM7808CT,regul,LM7808CT, from stock
+C2,100uF,device,CAPAPOL, from stock
+C3,10nF,device,C, from stock
+D3,1N5819,device,DIODE, from stock
+R9,10R,device,R, from stock
+P5,LCD,conn,CONN_4, Headers from stock, Order EBAY 4x20 i2c
+U4,RS485,device,RS485, from stock
+K2,RS485,conn,CONN_3, from stock
+U5,MCP2515Shield,device,MCP2515Shield, from stock
+P6,J1939,conn,CONN_4, from stock
+K5,FuelCool,conn,CONN_3, from stock
+K7,FlyOil,conn,CONN_3, from stock
+K6,AltBatt,conn,CONN_3, from stock
+F2,FUSE 40A,device,FUSE, from stock
+D2,SMBJ30CA-TR TSV,device,DIODE, from stock
+C1,10nF,device,C, from stock
+C10,10nF,device,C, from stock
+R3,47K,device,R, from stock
+R4,47K,device,R, from stock
+D6,1N5819,device,DIODE, from stock
+D5,1N5819,device,DIODE, from stock
+U6,MCP23008,device,MCP23008, Oder Ebay
+RL1,EnginePower,power,AutomotiveRelay, from stock
+RL2,EngineStart,power,AutomotiveRelay, from stock
+RL3,EngineStop,power,AutomotiveRelay, from stock
+RL4,GlowPlugs,power,AutomotiveRelay, from stock
+U8,8WayRelayBoard,device,8WayRelayBoard, from stock
+U2,DPDTRelay,1966260,device,DPDTRelay, Order RS
+R2,10K,device,R, from stock
+R1,2.2K,device,R, from stock
+D4,1N5819,device,DIODE, from stock
+U7,LM7805CT,regul,LM7808CT, from stock
+C11,10nF,device,C, from stock
+R5,10K,device,R, from stock
+P2,CONN_1,conn,CONN_1, from stock
+P3,CONN_1,conn,CONN_1, from stock
+P4,CONN_1,conn,CONN_1, from stock
+R10,10K,device,R, from stock
+R8,10K,device,R, from stock
+R7,10K,device,R, from stock
+R6,10K,device,R, from stock
+R12,10K,device,R, from stock
+R11,10K,device,R, from stock
+R14,10K,device,R, from stock
+R13,10K,device,R, from stock
+Q1,2N2907,device,PNP, from stock
+K1,SwitchedPower,conn,CONN_3, from stock
+P7,RelayBoard,conn,CONN_10, from stock
