@@ -7,7 +7,13 @@
 #include "ARD1939.h"
 
 
-extern void lcdPrint(int r, int c, int v, const char *fmt);
+// forward declarations
+extern void lcdPrint(int page, int r, int c, int v, const char *fmt);
+extern void stopPeripherals();
+extern void endIOExtender();
+extern int initIOExtender();
+
+
 
 #define PINS_FLYWHEEL 2
 #define PINS_CAN 3
@@ -45,7 +51,7 @@ void readEngineRPM() {
     engineRPM = ((measuredFlywheelPulses-lastFlywheelPulses)*FLYWHEEL_CONVERSION_U)/((now-lastFlywheelReadTime)*FLYWHEEL_CONVERSION_L);
     lastFlywheelReadTime = now;
     lastFlywheelPulses = measuredFlywheelPulses; 
-    lcdPrint(engineRPM,0,4,"%04d");
+    lcdPrint(1,engineRPM,0,4,"%04d");
   }
 }
 
@@ -83,8 +89,7 @@ void readFuelLevel() {
       fuelLevelLong = 0;
     }
     fuelLevel = 100-fuelLevelLong;
-    lcdPrint(fuelLevel,0,17,"%03d");
-
+    lcdPrint(1,fuelLevel,0,17,"%03d");
   }
 }
 
@@ -129,13 +134,13 @@ void readCoolant() {
     for (int i = 1; i < COOLANT_TABLE_LENGTH; i++) {
       if ( coolantReading < coolantTable[i] ) {
           coolantTemperature = coolantInterpolate(i,coolantReading);
-          lcdPrint(coolantTemperature,0,11,"%03d");
+          lcdPrint(1,coolantTemperature,0,11,"%03d");
           return;
       }
     }
     // < 0 and off the ADC scale, so cant interpolate. Should never get here.
     coolantTemperature = 0;
-    lcdPrint(coolantTemperature,0,11,"%03d");
+    lcdPrint(1, coolantTemperature,0,11,"%03d");
   }
 }
 
@@ -159,8 +164,7 @@ void readVoltages() {
       unsigned long reading = analogRead(i+START_ADC);
       unsigned long v100 = (reading*VOLTAGE_SCALE_U)/VOLTAGE_SCALE_L; 
       voltages[i] = v100;
-      lcdPrint(voltages[i]/10,1,(i*4)+5,"%03d");
-
+      lcdPrint(1,voltages[i]/10,1,(i*4)+5,"%03d");
     }
   }
 }
@@ -175,9 +179,9 @@ void initLCD() {
   lcd.backlight();
             // 012345678901234567890   
   lcd.print(F("Luna Engine Control  "));
-  lcd.setCursor(1,0);  
+  lcd.setCursor(0,1);  
             // 012345678901234567890   
-  lcd.print(F("Startup"));
+  lcd.print(F("Startup              "));
 }
 
 void endLCD() {
@@ -188,25 +192,74 @@ void endLCD() {
   digitalWrite(SDA, LOW);
 }
 
+#define DISPLAY_CYCLE_RATE 5000
+static int displayPage = -1;
+static unsigned long lastDisplayChange = 0;
 void updateDisplay() {
-  lcd.setCursor(0,0);  
-            // 012345678901234567890   
-  lcd.print(F("RPM:---- C:--- F:---"));
-  lcd.setCursor(1,0);  
-            // 012345678901234567890   
-  lcd.print(F("VOLT:---,---,---,---"));
-  lcd.setCursor(2,0);  
-            // 012345678901234567890   
-  lcd.print(F("TEMP1-3:---,---,--- "));
-  lcd.setCursor(3,0);  
-  lcd.print(F("TEMP4-6:---,---,--- "));
+  // probably need a long to do this calc
+  unsigned long now = millis();
+  if ( now > lastDisplayChange+DISPLAY_CYCLE_RATE ) {
+    lastDisplayChange = now;
+    if ( displayPage < 10 ) {
+      displayPage = (displayPage+1)%2;
+    }
+    switch(displayPage) {
+      case 0:
+        lcd.setCursor(0,0); 
+        lcd.print(F("Luna Engine Control ")); 
+        lcd.setCursor(0,1); 
+        lcd.print(F("J1939 Ok, RS485 Ok  ")); 
+        lcd.setCursor(0,2); 
+        lcd.print(F("Sensors Ok          ")); 
+        lcd.setCursor(0,3); 
+        lcd.print(F("Alarms None         ")); 
+        break;
+      case 1:    
+        lcd.setCursor(0,0);  
+                  // 012345678901234567890   
+        lcd.print(F("RPM:---- C:--- F:---"));
+        lcd.setCursor(0,1);  
+                  // 012345678901234567890   
+        lcd.print(F("VOLT:---,---,---,---"));
+        lcd.setCursor(0,2);  
+                  // 012345678901234567890   
+        lcd.print(F("TEMP1-3:---,---,--- "));
+        lcd.setCursor(0,3);  
+        lcd.print(F("TEMP4-6:---,---,--- "));
+        lcdPrint(1,engineRPM,0,4,"%04d");
+        lcdPrint(1,coolantTemperature,0,11,"%03d");
+        lcdPrint(1,fuelLevel,0,17,"%03d");
+
+        for (int i = 0; i < N_ADCS; i++) {
+          lcdPrint(1,voltages[i]/10,1,(i*4)+5,"%03d");
+        }
+      break;
+    }
+  }
 }
 
-void lcdPrint(int r, int c, int v, const char *fmt) {
-  char buffer[5];
-  lcd.setCursor(r,c);
-  sprintf(&buffer[0],fmt, r);
-  lcd.print(&buffer[0]);
+void switchDisplay(int page) {
+  displayPage = page;
+  lastDisplayChange = 0;
+  updateDisplay();
+}
+void resumeDisplay() {
+  displayPage = 1;
+  lastDisplayChange = 0;
+  updateDisplay();
+}
+
+void holdDisplay() {
+  lastDisplayChange = millis();
+}
+
+void lcdPrint(int page, int v, int r, int c, const char *fmt) {
+  if ( page == displayPage ) {
+    char buffer[5];
+    lcd.setCursor(c,r);
+    sprintf(&buffer[0],fmt, v);
+    lcd.print(&buffer[0]);
+  }
 }
 
 
@@ -428,7 +481,6 @@ void sendRS485() {
   }
 }
 
-extern void stopPeripherals();
 
 void setup() {
   pinMode(2, INPUT); // CAN INT
@@ -456,7 +508,6 @@ void setup() {
   stopPeripherals();
 }
 
-extern void endIOExtender();
 
 void stopPeripherals() {
   // scl sda low
@@ -473,25 +524,19 @@ void stopPeripherals() {
 // just came out of sleep.
 void initPeripherals() {
   Serial.println("Starting all peripherals");
+  initIOExtender();
   initLCD();
-  lcd.setCursor(1,0);  
-            // 012345678901234567890   
-  lcd.print(F("Startup"));
-  lcd.setCursor(2,0);  
-  lcd.print(F("Flywheel start       "));
-  initRPM();
   lcd.setCursor(1,7);  
   lcd.print(F("."));
-  lcd.setCursor(2,0);  
-  lcd.print(F("J1939 start         "));
-  initJ1939();  
+  initRPM();
   lcd.setCursor(1,8);  
   lcd.print(F("."));
-  lcd.setCursor(2,0);  
+  initJ1939();
+  lcd.setCursor(1,9);  
+  lcd.print(F("."));
+  lcd.setCursor(0,2);  
   lcd.print(F("Ready.....         "));
-  updateDisplay();
-  
-
+  holdDisplay();
 }
 
 Adafruit_MCP23X08 mcp;
@@ -722,6 +767,7 @@ void blink(int onAt, int period) {
 void loop() {
   readButtons();
   if ( enginePowerOn ) {
+    updateDisplay();
     readEngineRPM();
     readCoolant();
     readFuelLevel();
