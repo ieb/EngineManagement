@@ -30,11 +30,17 @@ byte canInit(void)
   nWritePointer = 0;
   
   // Initialize the CAN controller
+    Serial.println(F("Can controller begin"));
+
   if(CAN0.begin(CAN_250KBPS) == 0)
     return 0;
   else return 1;
 
 }// end canInitialize
+
+void canEnd(void) {
+  CAN0.end();
+}
 
 // ------------------------------------------------------------------------
 // Check CAN controller for error

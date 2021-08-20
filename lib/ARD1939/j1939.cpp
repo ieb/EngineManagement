@@ -179,6 +179,7 @@ byte v61;
 
 byte v64;
 extern byte canInit(void);
+extern void canEnd(void);
 extern byte canCheckError(void);
 extern byte canTransmit(long, unsigned char*, int);
 extern byte canReceive(long*, unsigned char*, int*);
@@ -230,7 +231,12 @@ byte ARD1939::Init(int v80)
 #endif
     
   v64 = 0;
+
   return canInit();
+}
+
+void ARD1939::end(void) {
+  canEnd();
 }
 
 void ARD1939::Terminate(void)

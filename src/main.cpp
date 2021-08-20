@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <pins_arduino.h>
 #include <stdlib.h>
 #include <inttypes.h>
 #include <SPI.h>
@@ -12,6 +13,11 @@ extern void lcdPrint(int page, int r, int c, int v, const char *fmt);
 extern void stopPeripherals();
 extern void endIOExtender();
 extern int initIOExtender();
+extern char extenderStatus();
+extern char j1939Status();
+extern char rs485Status();
+extern byte canCheckError();
+
 
 
 
@@ -191,6 +197,11 @@ void endLCD() {
   pinMode(SDA, OUTPUT); 
   digitalWrite(SDA, LOW);
 }
+void lcdUpdateState(int c, int r, char status) {
+    lcd.setCursor(c,r);
+    lcd.print(status);
+}
+
 
 #define DISPLAY_CYCLE_RATE 5000
 static int displayPage = -1;
@@ -208,9 +219,12 @@ void updateDisplay() {
         lcd.setCursor(0,0); 
         lcd.print(F("Luna Engine Control ")); 
         lcd.setCursor(0,1); 
-        lcd.print(F("J1939 Ok, RS485 Ok  ")); 
+        lcd.print(F("J1939 -, RS485 -    ")); 
+        lcdUpdateState(6,1,j1939Status());
+        lcdUpdateState(15,1,rs485Status());
         lcd.setCursor(0,2); 
-        lcd.print(F("Sensors Ok          ")); 
+        lcd.print(F("Sensors G, Ports -  ")); 
+        lcdUpdateState(17,2,extenderStatus());
         lcd.setCursor(0,3); 
         lcd.print(F("Alarms None         ")); 
         break;
@@ -249,7 +263,8 @@ void resumeDisplay() {
   updateDisplay();
 }
 
-void holdDisplay() {
+void holdDisplay(int page) {
+  displayPage = page;
   lastDisplayChange = millis();
 }
 
@@ -281,12 +296,31 @@ void lcdPrint(int page, int v, int r, int c, const char *fmt) {
  */
 
 ARD1939 j1939;
+static bool j1939Ok = false;
 void initJ1939() {
+  // setup pin directions.
+  pinMode(2, INPUT); 
+  pinMode(10, OUTPUT); 
+  pinMode(MOSI, OUTPUT); 
+  pinMode(MISO, INPUT); 
+  pinMode(SCK, OUTPUT); 
+
+  // drive outputs high before initialising.
+  digitalWrite(10, HIGH);
+  digitalWrite(MOSI, HIGH);
+  digitalWrite(SCK, HIGH);
+
+  Serial.println(F("j1939 Init Started"));
+
   // Initialize the J1939 protocol including CAN settings
-  if(j1939.Init(SYSTEM_TIME) == 0)
-    Serial.print(F("CAN Controller Init OK.\n\r\n\r"));
-  else
+  // calls Begin
+  if(j1939.Init(SYSTEM_TIME) != 0) {
+    j1939Ok = false;
     Serial.print(F("CAN Controller Init Failed.\n\r"));
+    return;
+  }
+  j1939Ok = true;
+  Serial.print(F("CAN Controller Init OK.\n\r\n\r"));
     
   // Set the preferred address and address range
   j1939.SetPreferredAddress(SA_PREFERRED);
@@ -312,17 +346,29 @@ void initJ1939() {
 }
 
 void  endJ1939() {
-  SPI.end();
-  pinMode(2, OUTPUT); 
+  j1939.end();
+  // switch all pins to floating inputs to ensure they dont power the board.
+  // messing with the pins breaks SPI when it starts again.
+  // Need to find a way of putting SPI to sleep properly and not driving the pins.
+  pinMode(2, INPUT); 
+  pinMode(10, INPUT); 
+  pinMode(MOSI, INPUT); 
+  pinMode(MISO, INPUT); 
+  pinMode(SCK, INPUT); 
   digitalWrite(2, LOW);
-  pinMode(10, OUTPUT); 
   digitalWrite(10, LOW);
-  pinMode(11, OUTPUT); 
-  digitalWrite(11, LOW);
-  pinMode(12, OUTPUT); 
-  digitalWrite(12, LOW);
-  pinMode(13, OUTPUT); 
-  digitalWrite(13, LOW);
+  digitalWrite(MOSI, LOW);
+  digitalWrite(MISO, LOW);
+  digitalWrite(SCK, LOW);
+  j1939Ok = false;
+}
+char j1939Status() {
+  if ( !j1939Ok ) {
+    return 'F';
+  } else if ( canCheckError() ) { 
+    return 'E';
+  } 
+  return 'G';
 }
 
 void sendJ1939() {
@@ -481,23 +527,29 @@ void sendRS485() {
   }
 }
 
+char rs485Status() {
+  return 'G';
+}
 
 void setup() {
+  // ensure SCL and SDA dont power anything during startup.
+  pinMode(SCL, INPUT);
+  pinMode(SDA, INPUT);
   pinMode(2, INPUT); // CAN INT
+  pinMode(10, INPUT); // CAN CS
   pinMode(3, INPUT); // RPM
-  pinMode(4, OUTPUT); // POWERUP
-  digitalWrite(4, HIGH);
   pinMode(5, INPUT); // OIL PRESSURE SWITCH
+  
+  pinMode(4, OUTPUT); // POWERUP
+  digitalWrite(4, HIGH); // Relay off.
   Serial.begin(115200);
   delay(1000);
   Serial.println("Settup IO");
   // setup buttons.
-  // use input pullup for testing only
   pinMode(6, INPUT);
   pinMode(7, INPUT);
   pinMode(8, INPUT);
   pinMode(9, INPUT);
-  pinMode(10, OUTPUT); // CAN CS
   Serial.println("Done Setup IO");
   for (int i = 6; i < 10; i++) {
     Serial.print("Pin");
@@ -526,20 +578,22 @@ void initPeripherals() {
   Serial.println("Starting all peripherals");
   initIOExtender();
   initLCD();
-  lcd.setCursor(1,7);  
-  lcd.print(F("."));
+  lcd.setCursor(0,3);
+             //01234567890123456789  
+  lcd.print(F("Start flywheel...   "));
   initRPM();
-  lcd.setCursor(1,8);  
-  lcd.print(F("."));
+  lcd.setCursor(0,3);  
+             //01234567890123456789  
+  lcd.print(F("Start j1939...      "));
   initJ1939();
-  lcd.setCursor(1,9);  
-  lcd.print(F("."));
-  lcd.setCursor(0,2);  
-  lcd.print(F("Ready.....         "));
-  holdDisplay();
+  lcd.setCursor(0,3);  
+             //01234567890123456789  
+  lcd.print(F("Ready.              "));
+  holdDisplay(3);
 }
 
 Adafruit_MCP23X08 mcp;
+static bool extenderOk = false;
 #define RELAY_ON LOW
 #define RELAY_OFF HIGH
 int initIOExtender() {
@@ -550,10 +604,20 @@ int initIOExtender() {
     mcp.pinMode(i, OUTPUT);
     mcp.digitalWrite(i, RELAY_OFF);
   }
+  extenderOk = true;
   return 1;
 }
 
+char extenderStatus() {
+  if ( extenderOk ) {
+    return 'G';
+  } else {
+    return 'F';
+  }
+}
+
 void endIOExtender() {
+  extenderOk = false;
   Wire.end();
 }
 
@@ -763,6 +827,20 @@ void blink(int onAt, int period) {
   }
 }
 
+volatile unsigned long onOffEdges = 0;
+
+#define WAKEUP_PIN 2
+
+void wakeUpHandler() {
+  onOffEdges++;
+}
+
+void powerDown() {
+  attachInterrupt(digitalPinToInterrupt(WAKEUP_PIN), wakeUpHandler, LOW);
+  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); 
+  detachInterrupt(digitalPinToInterrupt(WAKEUP_PIN)); 
+}
+
 
 void loop() {
   readButtons();
@@ -776,6 +854,6 @@ void loop() {
     sendJ1939();
     //blink(5,200); // 2s cycle on for 1s
   } else {
-    //blink(1,400); // 4s cycle on for 400ms
+    powerDown();
   }
 }

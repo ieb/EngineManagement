@@ -546,8 +546,6 @@ Text GLabel 13950 8350 0    60   Input ~ 0
 TX
 Text GLabel 13950 8250 0    60   Output ~ 0
 RX
-Text GLabel 13950 8450 0    60   Input ~ 0
-5VSwitched
 $Comp
 L GND #PWR010
 U 1 1 6106581C
@@ -595,19 +593,19 @@ F 3 "" H 13350 9100 60  0001 C CNN
 $EndComp
 Text GLabel 8200 8600 2    60   Output ~ 0
 SCK
-Text GLabel 8200 8700 2    60   Output ~ 0
+Text GLabel 8200 8700 2    60   Input ~ 0
 MISO
-Text GLabel 8200 8800 2    60   Input ~ 0
-MISI
-Text GLabel 6000 8200 0    60   Input ~ 0
+Text GLabel 8200 8800 2    60   Output ~ 0
+MOSI
+Text GLabel 6150 6800 0    60   Input ~ 0
 CANINT
 Text GLabel 12100 9000 0    60   Input ~ 0
 SCK
-Text GLabel 12100 9200 0    60   Input ~ 0
+Text GLabel 12100 9200 0    60   Output ~ 0
 MISO
-Text GLabel 12100 9100 0    60   Output ~ 0
-MISI
-Text GLabel 12100 8900 0    60   Output ~ 0
+Text GLabel 12100 9100 0    60   Input ~ 0
+MOSI
+Text GLabel 6750 6750 0    60   Output ~ 0
 CANINT
 $Comp
 L GND #PWR011
@@ -620,7 +618,7 @@ F 3 "" H 12550 9600 60  0001 C CNN
 	1    12550 9600
 	1    0    0    -1  
 $EndComp
-Text GLabel 13100 8550 0    60   Input ~ 0
+Text GLabel 12850 7500 0    60   Input ~ 0
 5VSwitched
 Text Notes 12800 9650 0    60   ~ 0
 Can board with trancever built in. 
@@ -1205,8 +1203,6 @@ F 3 "" H 4750 9600 30  0000 C CNN
 	1    4750 9600
 	-1   0    0    1   
 $EndComp
-Text GLabel 8300 8100 2    60   Output ~ 0
-5v150mA
 Text GLabel 4150 9250 0    60   Input ~ 0
 5V1A
 $Comp
@@ -1232,20 +1228,9 @@ F 3 "" H 8150 10100 30  0000 C CNN
 	-1   0    0    1   
 $EndComp
 Text GLabel 7850 9800 0    60   Input ~ 0
-5v150mA
-$Comp
-L R R14
-U 1 1 6112FB8E
-P 12700 8100
-F 0 "R14" V 12780 8100 40  0000 C CNN
-F 1 "10K" V 12707 8101 40  0000 C CNN
-F 2 "Resistors_SMD:R_0805_HandSoldering" V 12630 8100 30  0001 C CNN
-F 3 "" H 12700 8100 30  0000 C CNN
-	1    12700 8100
-	-1   0    0    1   
-$EndComp
+5VSwitched
 Text GLabel 12200 7700 0    60   Input ~ 0
-5v150mA
+5VSwitched
 Wire Wire Line
 	3900 1950 3900 1750
 Wire Wire Line
@@ -1441,9 +1426,7 @@ Wire Wire Line
 Wire Wire Line
 	5500 10150 5100 10150
 Wire Wire Line
-	5500 8600 5500 10150
-Wire Wire Line
-	5500 8600 6300 8600
+	5500 8200 5500 10150
 Wire Wire Line
 	6300 8700 5600 8700
 Wire Wire Line
@@ -1477,7 +1460,7 @@ Wire Wire Line
 Wire Wire Line
 	14050 8350 13950 8350
 Wire Wire Line
-	14050 8450 13950 8450
+	13050 8450 14050 8450
 Wire Notes Line
 	1500 4050 13250 4050
 Wire Notes Line
@@ -1505,9 +1488,7 @@ Wire Wire Line
 Wire Wire Line
 	15300 9250 15600 9250
 Wire Wire Line
-	12100 8900 12750 8900
-Wire Wire Line
-	13100 8550 13350 8550
+	13050 8550 13350 8550
 Wire Wire Line
 	13350 8550 13350 8650
 Wire Wire Line
@@ -1518,7 +1499,7 @@ Wire Wire Line
 	4750 8300 6300 8300
 Connection ~ 5300 8500
 Wire Wire Line
-	6000 8200 6300 8200
+	5500 8200 6300 8200
 Wire Wire Line
 	12550 9600 12550 9400
 Wire Wire Line
@@ -1825,8 +1806,6 @@ Wire Wire Line
 	4750 9900 5800 9900
 Connection ~ 5800 9900
 Wire Wire Line
-	8300 8100 7800 8100
-Wire Wire Line
 	4150 9250 5400 9250
 Wire Wire Line
 	5400 9250 5400 9350
@@ -1853,12 +1832,7 @@ Wire Wire Line
 	8150 9850 8150 9800
 Connection ~ 8150 9800
 Wire Wire Line
-	12200 7700 12700 7700
-Wire Wire Line
-	12700 7700 12700 7850
-Wire Wire Line
-	12700 8350 12700 8900
-Connection ~ 12700 8900
+	12200 7700 12300 7700
 $Comp
 L R R13
 U 1 1 6113183B
@@ -1875,7 +1849,6 @@ Wire Wire Line
 Connection ~ 12300 9300
 Wire Wire Line
 	12300 7700 12300 7850
-Connection ~ 12300 7700
 Wire Wire Line
 	12100 9200 12750 9200
 Wire Wire Line
@@ -2316,4 +2289,28 @@ Wire Wire Line
 Wire Wire Line
 	14150 2550 14250 2550
 Connection ~ 14150 2350
+NoConn ~ 7800 8100
+NoConn ~ 2700 3400
+$Comp
+L DIODE D?
+U 1 1 611CBF49
+P 13050 7950
+F 0 "D?" H 13050 8050 40  0000 C CNN
+F 1 "1N5819" H 13050 7850 40  0000 C CNN
+F 2 "Resistors_ThroughHole:Resistor_Horizontal_RM7mm" H 13050 7950 60  0001 C CNN
+F 3 "" H 13050 7950 60  0000 C CNN
+	1    13050 7950
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	12850 7500 13050 7500
+Wire Wire Line
+	13050 7500 13050 7750
+Wire Wire Line
+	13050 8150 13050 8550
+Connection ~ 13050 8450
+Text Notes 13100 7800 0    39   ~ 0
+Prevent backpowering \non startup
+NoConn ~ 12750 8900
+NoConn ~ 6300 8600
 $EndSCHEMATC
