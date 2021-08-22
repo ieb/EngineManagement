@@ -139,20 +139,16 @@ INT8U MCP_CAN::mcp2515_readStatus(void)
 INT8U MCP_CAN::mcp2515_setCANCTRL_Mode(const INT8U newmode)
 {
     INT8U i;
-    Serial.print("MCP Set Mode modify");
     mcp2515_modifyRegister(MCP_CANCTRL, MODE_MASK, newmode);
-    Serial.print("MCP Set Mode Read");
 
     i = mcp2515_readRegister(MCP_CANCTRL);
     i &= MODE_MASK;
 
     if ( i == newmode ) 
     {
-    Serial.print("MCP Set Mode OK");
         return MCP2515_OK;
     }
 
-    Serial.print("MCP Set Mode Fail");
     return MCP2515_FAIL;
 
 }
@@ -306,21 +302,17 @@ INT8U MCP_CAN::mcp2515_init(const INT8U canSpeed)                       /* mcp25
 
   INT8U res;
 
-    Serial.println("MCP Reset"); 
     mcp2515_reset();
 
-    Serial.println("MCP Set Mode"); 
 
     res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
     if(res > 0)
     {
-        Serial.print("Enter setting mode fall\r\n"); 
 #if DEBUG_MODE
       Serial.print("Enter setting mode fall\r\n"); 
 #endif
       return res;
     }
-    Serial.print("Enter setting mode success \r\n");
 #if DEBUG_MODE
     Serial.print("Enter setting mode success \r\n");
 #endif
@@ -328,7 +320,6 @@ INT8U MCP_CAN::mcp2515_init(const INT8U canSpeed)                       /* mcp25
                                                                         /* set boadrate                 */
     if(mcp2515_configRate(canSpeed))
     {
-      Serial.print("set rate fall!!\r\n");
 #if DEBUG_MODE
       Serial.print("set rate fall!!\r\n");
 #endif
@@ -337,7 +328,6 @@ INT8U MCP_CAN::mcp2515_init(const INT8U canSpeed)                       /* mcp25
 #if DEBUG_MODE
     Serial.print("set rate success!!\r\n");
 #endif
-    Serial.print("set rate success!!\r\n");
 
     if ( res == MCP2515_OK ) {
 
@@ -372,7 +362,6 @@ INT8U MCP_CAN::mcp2515_init(const INT8U canSpeed)                       /* mcp25
         res = mcp2515_setCANCTRL_Mode(MODE_NORMAL);                                                                
         if(res)
         {
-          Serial.print("Enter Normal Mode Fall!!\r\n");
 #if DEBUG_MODE        
           Serial.print("Enter Normal Mode Fall!!\r\n");
 #endif           
@@ -380,7 +369,6 @@ INT8U MCP_CAN::mcp2515_init(const INT8U canSpeed)                       /* mcp25
         }
 
 
-          Serial.print("Enter Normal Mode Success!!\r\n");
 #if DEBUG_MODE
           Serial.print("Enter Normal Mode Success!!\r\n");
 #endif
@@ -542,23 +530,16 @@ MCP_CAN::MCP_CAN(INT8U _CS)
 INT8U MCP_CAN::begin(INT8U speedset)
 {
     INT8U res;
-    Serial.println(F("SPI Begin"));
 
     SPI.begin();
-    Serial.println(F("MCP Init"));
     res = mcp2515_init(speedset);
     if (res == MCP2515_OK) {
-        Serial.println(F("MCP Ok"));
         return CAN_OK;
     } else {
-        Serial.println(F("MCP Failinit"));
         return CAN_FAILINIT;
     }
 }
 
-void MCP_CAN::end(void) {
-    SPI.end();
-}
 
 /*********************************************************************************************************
 ** Function name:           init_Mask

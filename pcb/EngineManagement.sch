@@ -597,16 +597,12 @@ Text GLabel 8200 8700 2    60   Input ~ 0
 MISO
 Text GLabel 8200 8800 2    60   Output ~ 0
 MOSI
-Text GLabel 6150 6800 0    60   Input ~ 0
-CANINT
 Text GLabel 12100 9000 0    60   Input ~ 0
 SCK
 Text GLabel 12100 9200 0    60   Output ~ 0
 MISO
 Text GLabel 12100 9100 0    60   Input ~ 0
 MOSI
-Text GLabel 6750 6750 0    60   Output ~ 0
-CANINT
 $Comp
 L GND #PWR011
 U 1 1 610738E2
@@ -631,7 +627,7 @@ CANCS
 Text GLabel 12100 9300 0    60   Input ~ 0
 CANCS
 Text Notes 5300 7350 0    60   ~ 0
-ProMini only has interrupts on pins 2 and 3
+ProMini only has interrupts on pins 2 and 3\nThere is a 10K pullup on the reset on board.
 Text GLabel 5150 10650 0    60   Output ~ 0
 StopBtn
 Text Notes 2550 850  0    60   ~ 0
@@ -642,8 +638,6 @@ NoConn ~ 7050 7400
 NoConn ~ 7150 7400
 NoConn ~ 7250 7400
 NoConn ~ 7350 7400
-NoConn ~ 6300 8000
-NoConn ~ 7800 8000
 Text GLabel 10150 7200 1    60   Input ~ 0
 Excitation
 $Comp
@@ -1228,8 +1222,6 @@ F 3 "" H 8150 10100 30  0000 C CNN
 	-1   0    0    1   
 $EndComp
 Text GLabel 7850 9800 0    60   Input ~ 0
-5VSwitched
-Text GLabel 12200 7700 0    60   Input ~ 0
 5VSwitched
 Wire Wire Line
 	3900 1950 3900 1750
@@ -1832,24 +1824,6 @@ Wire Wire Line
 	8150 9850 8150 9800
 Connection ~ 8150 9800
 Wire Wire Line
-	12200 7700 12300 7700
-$Comp
-L R R13
-U 1 1 6113183B
-P 12300 8100
-F 0 "R13" V 12380 8100 40  0000 C CNN
-F 1 "10K" V 12307 8101 40  0000 C CNN
-F 2 "Resistors_SMD:R_0805_HandSoldering" V 12230 8100 30  0001 C CNN
-F 3 "" H 12300 8100 30  0000 C CNN
-	1    12300 8100
-	-1   0    0    1   
-$EndComp
-Wire Wire Line
-	12300 8350 12300 9300
-Connection ~ 12300 9300
-Wire Wire Line
-	12300 7700 12300 7850
-Wire Wire Line
 	12100 9200 12750 9200
 Wire Wire Line
 	12100 9100 12750 9100
@@ -2289,7 +2263,6 @@ Wire Wire Line
 Wire Wire Line
 	14150 2550 14250 2550
 Connection ~ 14150 2350
-NoConn ~ 7800 8100
 NoConn ~ 2700 3400
 $Comp
 L DIODE D?
@@ -2312,5 +2285,12 @@ Connection ~ 13050 8450
 Text Notes 13100 7800 0    39   ~ 0
 Prevent backpowering \non startup
 NoConn ~ 12750 8900
-NoConn ~ 6300 8600
+NoConn ~ 7800 8000
+NoConn ~ 7800 8100
+Wire Wire Line
+	6300 8000 6250 8000
+Wire Wire Line
+	6250 8000 6250 8600
+Wire Wire Line
+	6250 8600 6300 8600
 $EndSCHEMATC

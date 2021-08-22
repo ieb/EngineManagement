@@ -6,23 +6,83 @@
 #include <Adafruit_MCP23X08.h>
 #include <LiquidCrystal_I2C.h>
 #include "ARD1939.h"
+#include "LowPower.h"
+
 
 
 // forward declarations
 extern void lcdPrint(int page, int r, int c, int v, const char *fmt);
-extern void stopPeripherals();
-extern void endIOExtender();
 extern int initIOExtender();
 extern char extenderStatus();
 extern char j1939Status();
 extern char rs485Status();
 extern byte canCheckError();
+extern void beginButtons();
+
+extern void powerDown();
+extern void readButtons();
+extern void updateDisplay();
+extern void readEngineRPM();
+extern void readCoolant();
+extern void readFuelLevel();
+extern void readVoltages();
+extern void sendRS485();
+extern void sendJ1939();
+extern bool isEnginePowerOn();
 
 
+#define PIN_RESET 6 // wired to the reset pin. The reset pin has a 10K pullup so at power on
 
 
-#define PINS_FLYWHEEL 2
-#define PINS_CAN 3
+void hardReset() {
+  pinMode(PIN_RESET,OUTPUT);
+  digitalWrite(PIN_RESET,LOW);
+}
+
+void setup() {
+  digitalWrite(PIN_RESET,HIGH); // just in case it was low.
+  pinMode(PIN_RESET,INPUT); // this ensures it will float high till reset.
+
+  Serial.begin(115200);
+  Serial.println(F("Luna monitor start"));
+  // ensure SCL and SDA dont power anything during startup.
+  pinMode(SCL, INPUT);
+  digitalWrite(SCL, LOW);
+  pinMode(SDA, INPUT);
+  digitalWrite(SDA, LOW);
+  pinMode(10, INPUT); // CAN CS
+  digitalWrite(10, LOW);
+  pinMode(MOSI, INPUT);
+  digitalWrite(MOSI, LOW);
+  pinMode(MISO, INPUT);
+  digitalWrite(MISO, LOW);
+  pinMode(SCK, INPUT);
+  digitalWrite(SCK, LOW);
+  pinMode(3, INPUT); // RPM
+  digitalWrite(3, LOW);
+  pinMode(5, INPUT); // OIL PRESSURE SWITCH
+  digitalWrite(5, LOW);
+  beginButtons();  
+}
+
+
+void loop() {
+  powerDown();
+  readButtons();
+  if ( isEnginePowerOn() ) {
+    updateDisplay();
+    readEngineRPM();
+    readCoolant();
+    readFuelLevel();
+    readVoltages();
+    //sendRS485();
+    sendJ1939();
+    //blink(5,200); // 2s cycle on for 1s
+  }
+}
+
+
+#define PINS_FLYWHEEL 3
 volatile unsigned long flywheelPulses = 0;
 
 void flywheelPuseHandler() {
@@ -33,13 +93,11 @@ void initRPM() {
   pinMode(PINS_FLYWHEEL, INPUT);
   attachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL), flywheelPuseHandler, RISING);
 }
-void endRPM() {
-  // no action required.
-}
 
 int engineRPM = 0;
 #define FLYWHEEL_READ_PERIOD 500
 // pulses  Perms -> RPM conversion.
+// 415Hz at idle below needs adjusting.
 // reading every 500ms, RPM at 900 with say 50 notche, 15*50 Hz, 750 Hz
 // pps == pulses*1000/timeInMs
 // rps = pps/teeth
@@ -190,13 +248,6 @@ void initLCD() {
   lcd.print(F("Startup              "));
 }
 
-void endLCD() {
-  Wire.end();
-  pinMode(SCL, OUTPUT); 
-  digitalWrite(SCL, LOW);
-  pinMode(SDA, OUTPUT); 
-  digitalWrite(SDA, LOW);
-}
 void lcdUpdateState(int c, int r, char status) {
     lcd.setCursor(c,r);
     lcd.print(status);
@@ -294,21 +345,26 @@ void lcdPrint(int page, int v, int r, int c, const char *fmt) {
  * 
  * 
  */
+#define EMS_ADDRESS 0
+// 21 bit ID number
+#define EMS_IDENTITY 123
+//  
+#define EMS_MANUFACTURER_CODE 1
+#define EMS_FUNCTION_INSTANCE 0
+#define EMS_ECU_INSTANCE 0
+#define EMS_FUNCTION 0
+#define EMS_VEHICLE_SYSTEM 0
+#define EMS_VEHICLE_SYSTEM_INSTANCE 0
+#define EMS_INDUSTRY_GROUP 0
+#define EMS_ARBITRARY_ADDRESS_CAPABLE 0
 
 ARD1939 j1939;
 static bool j1939Ok = false;
 void initJ1939() {
   // setup pin directions.
-  pinMode(2, INPUT); 
   pinMode(10, OUTPUT); 
-  pinMode(MOSI, OUTPUT); 
-  pinMode(MISO, INPUT); 
-  pinMode(SCK, OUTPUT); 
-
   // drive outputs high before initialising.
   digitalWrite(10, HIGH);
-  digitalWrite(MOSI, HIGH);
-  digitalWrite(SCK, HIGH);
 
   Serial.println(F("j1939 Init Started"));
 
@@ -323,8 +379,8 @@ void initJ1939() {
   Serial.print(F("CAN Controller Init OK.\n\r\n\r"));
     
   // Set the preferred address and address range
-  j1939.SetPreferredAddress(SA_PREFERRED);
-  j1939.SetAddressRange(ADDRESSRANGEBOTTOM, ADDRESSRANGETOP);
+  j1939.SetPreferredAddress(EMS_ADDRESS);
+  j1939.SetAddressRange(EMS_ADDRESS, ADDRESSRANGETOP);
   
   // Set the message filter
   //j1939.SetMessageFilter(59999);
@@ -334,34 +390,17 @@ void initJ1939() {
   //j1939.SetMessageFilter(65267);
   
   // Set the NAME
-  j1939.SetNAME(NAME_IDENTITY_NUMBER,
-                NAME_MANUFACTURER_CODE,
-                NAME_FUNCTION_INSTANCE,
-                NAME_ECU_INSTANCE,
-                NAME_FUNCTION,
-                NAME_VEHICLE_SYSTEM,
-                NAME_VEHICLE_SYSTEM_INSTANCE,
-                NAME_INDUSTRY_GROUP,
-                NAME_ARBITRARY_ADDRESS_CAPABLE);
+  j1939.SetNAME(EMS_IDENTITY,
+                EMS_MANUFACTURER_CODE,
+                EMS_FUNCTION_INSTANCE,
+                EMS_ECU_INSTANCE,
+                EMS_FUNCTION,
+                EMS_VEHICLE_SYSTEM,
+                EMS_VEHICLE_SYSTEM_INSTANCE,
+                EMS_INDUSTRY_GROUP,
+                EMS_ARBITRARY_ADDRESS_CAPABLE);
 }
 
-void  endJ1939() {
-  j1939.end();
-  // switch all pins to floating inputs to ensure they dont power the board.
-  // messing with the pins breaks SPI when it starts again.
-  // Need to find a way of putting SPI to sleep properly and not driving the pins.
-  pinMode(2, INPUT); 
-  pinMode(10, INPUT); 
-  pinMode(MOSI, INPUT); 
-  pinMode(MISO, INPUT); 
-  pinMode(SCK, INPUT); 
-  digitalWrite(2, LOW);
-  digitalWrite(10, LOW);
-  digitalWrite(MOSI, LOW);
-  digitalWrite(MISO, LOW);
-  digitalWrite(SCK, LOW);
-  j1939Ok = false;
-}
 char j1939Status() {
   if ( !j1939Ok ) {
     return 'F';
@@ -371,10 +410,46 @@ char j1939Status() {
   return 'G';
 }
 
+struct PGN61444 {
+  byte engineTorqueMode;
+  byte requestedTorque;
+  byte deliveredTorque;
+  uint16_t engineSpeed;
+  byte controlSourceAddress;
+  byte engineStarterMode;
+  byte engineDemantTorque;
+};
+
+union PGN61444Msg {
+  byte pgn61444Data[sizeof(PGN61444)];
+  PGN61444 pgn61444;
+};
+
+#define STARTER_NOT_REQUESTED 0b0000 // start not requested
+#define STARTER_ACTIVE_NO_GEAR 0b0001 //starter active, gear not engaged
+#define STARTER_ACTIVE_GEAR 0b0010 //starter active, gear engaged
+#define STARTER_FINISHED 0b0011 //start finished; starter not active after having been actively engaged (after 50ms mode goes to 0000) 0100 starter inhibited due to engine already running
+#define STARTER_NOT_READY_PREHEAT 0b0101 //starter inhibited due to engine not ready for start (preheating)
+#define STARTER_INHIBIT_GEAR 0b0110 //starter inhibited due to driveline engaged or other transmission inhibit
+#define STARTER_INHIBIT_IMOBIL 0b0111 //starter inhibited due to active immobilizer
+#define STARTER_INHIBIT_OVER_TEMP 0b1000 //starter inhibited due to starter over-temp
+#define STARTER_INHIBIT_UNOWN 0b1100 //starter inhibited - reason unknown
+#define STARTER_ERROR 0b1110 //error
+#define STARTER_NA 0b1111 //not available
+
+
+#define J1939_UPDATE_PERIOD 500
 void sendJ1939() {
 
-
+  static unsigned long j1939Update = 0;
   static int nCounter = 0;
+
+  unsigned long now = millis();
+  if ( now < j1939Update+J1939_UPDATE_PERIOD ) {
+    return;
+  }
+  j1939Update = now;
+
 
  // J1939 Variables
   byte nMsgId;
@@ -398,7 +473,56 @@ void sendJ1939() {
   
   // Call the J1939 protocol stack
   nJ1939Status = j1939.Operate(&nMsgId, &lPGN, &pMsg[0], &nMsgLen, &nDestAddr, &nSrcAddr, &nPriority);
+  switch(nJ1939Status) {
+    case ADDRESSCLAIM_INPROGRESS:
+    Serial.print(F("Address Claim Inprogress"));
+    break;
+    case ADDRESSCLAIM_FAILED:
+    Serial.print(F("Address Claim Failed"));
+    break;
+    case NORMALDATATRAFFIC:
+    Serial.print(F("Normal"));
+    break;
+  }
+  switch(nMsgId) {
+    case J1939_MSG_PROTOCOL:
+    Serial.print(F(" MSG Protocol "));
+    break;
+    case J1939_MSG_APP:
+    Serial.print(F(" MSG App "));
+    break;
+    default:
+    Serial.print(F(" MSG "));
+    Serial.print(nMsgId);
+    break;   
+  }
+  Serial.print(lPGN);
+  Serial.print(F("  "));
+  Serial.print(nSrcAddr);
+  Serial.println(".");
+
+  nSrcAddr = j1939.GetSourceAddress();
   
+  // SPN 899 1.1 4 bits engine torque mode 0x00, no request
+  // SPN 512 2   1 byte requested torque 125 no torque
+  // SPN 513 3   1 byte delivered torque 125 no torque
+  // SPN 190 4   2 bytes engine speed  0.125 rpm per bit
+  // SPN 1483 6  1 byte source address controlling engine
+  // SPN 1675 7.1 4 bits Engine starter mode
+  // SPN 2432 8 1 byte engine torque demand
+
+
+
+  PGN61444Msg engineUpdate;
+  engineUpdate.pgn61444.engineTorqueMode = 0x00;
+  engineUpdate.pgn61444.requestedTorque = 128;
+  engineUpdate.pgn61444.deliveredTorque = 128;
+  engineUpdate.pgn61444.engineSpeed = 2000*8;
+  engineUpdate.pgn61444.controlSourceAddress = 0;
+  engineUpdate.pgn61444.engineStarterMode = STARTER_NOT_REQUESTED;
+  engineUpdate.pgn61444.engineDemantTorque = 128;
+  j1939.Transmit(3, 61444, 0, GLOBALADDRESS, engineUpdate.pgn61444Data, sizeof(PGN61444));
+
   /*
   // Block certain claimed addresses
   if(nMsgId == J1939_MSG_PROTOCOL)
@@ -433,7 +557,7 @@ void sendJ1939() {
   
   
   // Send out a periodic message with a length of more than 8 bytes
-  // RTS/CTS Session
+  // RTS/CTS SessionNORMALDATATRAFFIC
   if(nJ1939Status == NORMALDATATRAFFIC)
   {
     nCounter++;
@@ -456,10 +580,12 @@ void sendJ1939() {
     switch(nJ1939Status)
     {
       case ADDRESSCLAIM_INPROGRESS:
+        Serial.println("Claim in progress");
       
         break;
         
       case NORMALDATATRAFFIC:
+        Serial.println("Normal data traffic");
       
         // Determine the negotiated source address
         //byte nAppAddress;
@@ -468,7 +594,7 @@ void sendJ1939() {
        break;
         
       case ADDRESSCLAIM_FAILED:
-      
+        Serial.println("Address claim failed");
         break;
       
     }// end switch(nJ1939Status)
@@ -531,51 +657,14 @@ char rs485Status() {
   return 'G';
 }
 
-void setup() {
-  // ensure SCL and SDA dont power anything during startup.
-  pinMode(SCL, INPUT);
-  pinMode(SDA, INPUT);
-  pinMode(2, INPUT); // CAN INT
-  pinMode(10, INPUT); // CAN CS
-  pinMode(3, INPUT); // RPM
-  pinMode(5, INPUT); // OIL PRESSURE SWITCH
+
+
   
-  pinMode(4, OUTPUT); // POWERUP
-  digitalWrite(4, HIGH); // Relay off.
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("Settup IO");
-  // setup buttons.
-  pinMode(6, INPUT);
-  pinMode(7, INPUT);
-  pinMode(8, INPUT);
-  pinMode(9, INPUT);
-  Serial.println("Done Setup IO");
-  for (int i = 6; i < 10; i++) {
-    Serial.print("Pin");
-    Serial.print(i);
-    Serial.print(",");
-    Serial.println(digitalRead(i));    
-  }
-  stopPeripherals();
-}
-
-
-void stopPeripherals() {
-  // scl sda low
-  //D10, D11, D12, D13 low
-  // D2 low
-  endLCD();
-  endRPM();
-  endJ1939();
-  endIOExtender();
-  Serial.println("All Pins should be low");
-}
 
 
 // just came out of sleep.
 void initPeripherals() {
-  Serial.println("Starting all peripherals");
+  Serial.println(F("Starting all peripherals"));
   initIOExtender();
   initLCD();
   lcd.setCursor(0,3);
@@ -616,22 +705,26 @@ char extenderStatus() {
   }
 }
 
-void endIOExtender() {
-  extenderOk = false;
-  Wire.end();
-}
 
 
 
 bool enginePowerOn = false;
 #define BUTTON_READ_PERIOD 200
 #define MAX_BUTTON_PRESS 300 // 60000/200 ie 60s
+
+// IO Extender outputs
+#define V12V_POWER 0
+#define V12V40A_POWER 1
 #define START_POWER 2
 #define STOP_POWER 3
 #define GLOW_POWER 4
-#define V12V_POWER 0
-#define V12V40A_POWER 1
-#define MCU_POWER 4
+
+#define PIN_ONOFF_BUTTON 2
+#define PIN_START_BUTTON 7
+#define PIN_STOP_BUTTON 8
+#define PIN_GLOW_BUTTON 9
+#define PIN_MCU_POWER 4
+
 
 #define BTN_ONOFF 0
 #define BTN_START 1
@@ -640,25 +733,105 @@ bool enginePowerOn = false;
 #define BUTTON_PRESSED(i) (!stateNow[i] && buttonState[i])
 #define BUTTON_RELEASED(i) (stateNow[i] && !buttonState[i])
 
+const int button_pins[4] = {PIN_ONOFF_BUTTON,PIN_START_BUTTON,PIN_STOP_BUTTON,PIN_GLOW_BUTTON};
+bool buttonState[4] = {1,1,1,1};
 
 
+
+
+void beginButtons() {
+  pinMode(PIN_MCU_POWER, OUTPUT); // POWERUP
+  digitalWrite(PIN_MCU_POWER, HIGH); // Relay off.
+
+  Serial.println(F("Done Setup IO"));
+  for (int i = 0; i < 4; i++) {
+    pinMode(button_pins[i], INPUT);
+    Serial.print(F("Pin"));
+    Serial.print(i);
+    Serial.print(F(","));
+    buttonState[i] = digitalRead(button_pins[i]);
+    Serial.println(buttonState[i]);    
+  }
+}
+
+// only used for wakeup
+void powerWakeHandler() {
+}
+
+
+void powerDown() {
+  static unsigned long startSleepMillis = 0;
+  unsigned long now = millis();
+  if (enginePowerOn) {
+    startSleepMillis = 0;
+  } else {
+    if ( startSleepMillis == 0 ) {
+      // stay awake for 30s after power down
+      startSleepMillis = now + 30000;
+    } else if ( now > startSleepMillis) {
+      // go to sleep
+      Serial.println(F("Sleeping....."));
+      delay(100);
+      // bring everything into a low power state, the only way out is to restart
+      Wire.end();
+      SPI.end();
+
+      pinMode(SCL, INPUT); 
+      digitalWrite(SCL, LOW);
+      pinMode(SDA, INPUT); 
+      digitalWrite(SDA, LOW);
+      // switch all non SPI pins to floating inputs to ensure they dont power the board.
+      pinMode(10, INPUT); 
+      digitalWrite(10, LOW);
+      pinMode(MOSI, INPUT);
+      digitalWrite(MOSI, LOW);
+      pinMode(MISO, INPUT);
+      digitalWrite(MISO, LOW);
+      pinMode(SCK, INPUT);
+      digitalWrite(SCK, LOW);
+      // Note the only way to restart the Can shield is to perform a reset on the MCU
+
+      // make sure the flywheel doesnt wake up.
+      Serial.end();
+      detachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL));
+      attachInterrupt(digitalPinToInterrupt(PIN_ONOFF_BUTTON), powerWakeHandler, LOW);
+      LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); 
+      Serial.begin(115300);
+      Serial.println("Wokeup...");
+      delay(100);
+      // the bootloader on pro mini's has a but that causes a 
+      // watchdog reset to go into an infinite loop
+      // this jumps to 0, but may still not work to reset all the 
+      // IO pins properly.
+      hardReset();
+      // doesnt get here.
+    }
+  }
+}
+
+bool isEnginePowerOn() {
+  return enginePowerOn;
+}
+
+/**
+ * The onoff button is edge triggerd, the other buttons are read.
+ */ 
 void readButtons() {
   static unsigned long lastButtonRead = 0;
   static uint16_t ticks[4] = {0,0,0,0};
   // at power up, all the lines are pulled high by an external resistor
   // so the button state stats as all 1's.
-  static bool buttonState[4] = { 1,1,1,1};
   unsigned long now = millis();
   if ( now > lastButtonRead+BUTTON_READ_PERIOD ) {
     lastButtonRead = now;
     int stateNow[4];
     int npressed = 0;
     for (int i = 0; i < 4; i++) {
-      stateNow[i] = digitalRead(i+6);
+      stateNow[i] = digitalRead(button_pins[i]);
       if (!stateNow[i]) npressed++;
     }
     if ( npressed > 1) {
-      Serial.print("Buttons pressed is ");
+      Serial.print(F("Buttons low, power needed, "));
       Serial.println(npressed);
 
       // multiple buttons pressed, ignore
@@ -678,60 +851,59 @@ void readButtons() {
         // button has been pressed for 60s, is this a short ?
         // force button off, ie high
         stateNow[i] = 1;
-        Serial.println("Button Short");
+        Serial.println(F("Button Short"));
       }
       if ( ticks[i] > 0 ) {
         // state has remained the same for 2x read period, not a bounce.
         switch(i) {
           case BTN_ONOFF:
-            // on/off button is press on, release, press off.
-            // no action on release.
-            // button pressed, but not acted on
-            if ( BUTTON_PRESSED(i) ) {            
-                Serial.println("On/Off pressed ");
-                if ( enginePowerOn  ) {
-                  // power down
-                    // make certain start and glow are off.
-                    mcp.digitalWrite(START_POWER,RELAY_OFF);
-                    mcp.digitalWrite(GLOW_POWER,RELAY_OFF);
-                    mcp.digitalWrite(STOP_POWER,RELAY_OFF);
-                    mcp.digitalWrite(V12V40A_POWER, RELAY_OFF); // 40A 12V power.
-                    mcp.digitalWrite(V12V_POWER, RELAY_OFF); // 12v peripherals
-                    stopPeripherals();
-                    digitalWrite(MCU_POWER,RELAY_OFF); // 8v and 5v
-                    enginePowerOn = false;
-                    Serial.println("Power Off");
-                } else {
-                    // power is off, go through power on sequence
-                    // this can be done with delays rather than looping.
-                    digitalWrite(MCU_POWER,RELAY_ON); // 8v and 5v
-                    delay(100); // let 8v and 5v units startup.
-                    initPeripherals();
-                    // make certain start and glow are off, before powering up 12v
-                    mcp.digitalWrite(START_POWER,RELAY_OFF);
-                    mcp.digitalWrite(GLOW_POWER,RELAY_OFF);
-                    mcp.digitalWrite(STOP_POWER,RELAY_OFF);
+            if (BUTTON_PRESSED(i)) {
+              Serial.println(F("OnOff pressed"));
+              // button press detected
+              if ( enginePowerOn  ) {
+                // power down
+                  // make certain start and glow are off.
+                  mcp.digitalWrite(START_POWER,RELAY_OFF);
+                  mcp.digitalWrite(GLOW_POWER,RELAY_OFF);
+                  mcp.digitalWrite(STOP_POWER,RELAY_OFF);
+                  mcp.digitalWrite(V12V40A_POWER, RELAY_OFF); // 40A 12V power.
+                  mcp.digitalWrite(V12V_POWER, RELAY_OFF); // 12v peripherals
+                  digitalWrite(PIN_MCU_POWER,RELAY_OFF); // 8v and 5v
+                  enginePowerOn = false;
+                  Serial.println(F("Reboot"));
+                  Serial.end();
+                  delay(100);
+                  hardReset();
+                  // never gets here after the reset.
 
-                    delay(100);
-                    mcp.digitalWrite(V12V_POWER, RELAY_ON); // 12v peripherals
-                    delay(100);
-                    mcp.digitalWrite(V12V40A_POWER, RELAY_ON); // 40A 12V power.
-                    enginePowerOn = true;
-                    Serial.println("Power On");
-                }
-            } else if ( BUTTON_RELEASED(i) ) {
-              Serial.println("On/Off release ignored");
-              // button released, or button still pressed, do nothing
-            } else {
-              // no change
-              Serial.println("No change in button state should not happen");
+              } else {
+                  Serial.println(F("Power On"));
+                  // power is off, go through power on sequence
+                  // this can be done with delays rather than looping.
+                  digitalWrite(PIN_MCU_POWER,RELAY_ON); // 8v and 5v
+                  delay(100); // let 8v and 5v units startup.
+                  initPeripherals();
+                  // make certain start and glow are off, before powering up 12v
+                  mcp.digitalWrite(START_POWER,RELAY_OFF);
+                  mcp.digitalWrite(GLOW_POWER,RELAY_OFF);
+                  mcp.digitalWrite(STOP_POWER,RELAY_OFF);
+
+                  delay(100);
+                  mcp.digitalWrite(V12V_POWER, RELAY_ON); // 12v peripherals
+                  delay(100);
+                  mcp.digitalWrite(V12V40A_POWER, RELAY_ON); // 40A 12V power.
+                  enginePowerOn = true;
+              }
+              buttonState[i] = stateNow[i];
+            } else if ( BUTTON_RELEASED(i)) {
+              Serial.println(F("OnOff released"));
+              buttonState[i] = stateNow[i];
             }
-            buttonState[i] = stateNow[i];
-            break;
+          break;
           case BTN_START:
             // the start button is press on, release off.
             if ( BUTTON_PRESSED(i)  ) {
-              Serial.println("Start pressed");
+              Serial.println(F("Start pressed"));
               if ( enginePowerOn ) {
                 // only if the engine is powered on.
                 if ( coolantTemperature < 50 ) {
@@ -741,19 +913,19 @@ void readButtons() {
                 }
                 mcp.digitalWrite(STOP_POWER, RELAY_OFF); // stop relay off
                 mcp.digitalWrite(START_POWER, RELAY_ON); // start
-                Serial.println("Starting");
+                Serial.println(F("Starting"));
               } else {
-                Serial.println("Start ignored");
+                Serial.println(F("Start ignored"));
               }
               buttonState[i] = stateNow[i];
             } else if ( BUTTON_RELEASED(i) ) {
-              Serial.println("Start released");
+              Serial.println(F("Start released"));
             // turn start sequence off, regardless
               mcp.digitalWrite(STOP_POWER, RELAY_OFF); // stop relay off
               mcp.digitalWrite(START_POWER, RELAY_OFF);
               mcp.digitalWrite(GLOW_POWER, RELAY_OFF);
               buttonState[i] = stateNow[i];
-              Serial.println("Not Starting");
+              Serial.println(F("Not Starting"));
             }
 
             // could get the engine temp and decide to turn the glow plugs on automatically.
@@ -764,42 +936,42 @@ void readButtons() {
           case BTN_STOP:
             // stop button is press on, release off.
             if ( BUTTON_PRESSED(i) ) {
-              Serial.println("Stop pressed");
+              Serial.println(F("Stop pressed"));
               mcp.digitalWrite(START_POWER, RELAY_OFF);
               mcp.digitalWrite(GLOW_POWER, RELAY_OFF);
               mcp.digitalWrite(STOP_POWER, RELAY_ON); // stop relay on
               buttonState[i] = stateNow[i];
-              Serial.println("Stopping");
+              Serial.println(F("Stopping"));
             } else if (BUTTON_RELEASED(i) ) {
-              Serial.println("Stop released");
+              Serial.println(F("Stop released"));
               mcp.digitalWrite(START_POWER, RELAY_OFF);
               mcp.digitalWrite(GLOW_POWER, RELAY_OFF);
               mcp.digitalWrite(STOP_POWER, RELAY_OFF); // stop relay off
               buttonState[i] = stateNow[i];
-              Serial.println("Not Stopping");
+              Serial.println(F("Not Stopping"));
             }
             break;
           case BTN_GLOW:
             // glow button is press on, release off
             // glow
             if ( BUTTON_PRESSED(i) ) {
-              Serial.println("Glow pressed");
+              Serial.println(F("Glow pressed"));
               if ( enginePowerOn ) {
                 mcp.digitalWrite(START_POWER, RELAY_OFF);
                 mcp.digitalWrite(GLOW_POWER, RELAY_ON); // glow on
                 mcp.digitalWrite(STOP_POWER, RELAY_OFF); 
-                Serial.println("Glow on");
+                Serial.println(F("Glow on"));
               } else {
-                Serial.println("Glow button ignored");
+                Serial.println(F("Glow button ignored"));
               }
               buttonState[i] = stateNow[i];
             } else if (BUTTON_RELEASED(i) ) {
-              Serial.println("Glow released");
+              Serial.println(F("Glow released"));
               mcp.digitalWrite(START_POWER, RELAY_OFF);
               mcp.digitalWrite(GLOW_POWER, RELAY_OFF); // glow off
               mcp.digitalWrite(STOP_POWER, RELAY_OFF);
               buttonState[i] = stateNow[i];
-              Serial.println("Glow off");
+              Serial.println(F("Glow off"));
             }
             break;
         }
@@ -827,33 +999,6 @@ void blink(int onAt, int period) {
   }
 }
 
-volatile unsigned long onOffEdges = 0;
-
-#define WAKEUP_PIN 2
-
-void wakeUpHandler() {
-  onOffEdges++;
-}
-
-void powerDown() {
-  attachInterrupt(digitalPinToInterrupt(WAKEUP_PIN), wakeUpHandler, LOW);
-  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); 
-  detachInterrupt(digitalPinToInterrupt(WAKEUP_PIN)); 
-}
 
 
-void loop() {
-  readButtons();
-  if ( enginePowerOn ) {
-    updateDisplay();
-    readEngineRPM();
-    readCoolant();
-    readFuelLevel();
-    readVoltages();
-    //sendRS485();
-    sendJ1939();
-    //blink(5,200); // 2s cycle on for 1s
-  } else {
-    powerDown();
-  }
-}
+

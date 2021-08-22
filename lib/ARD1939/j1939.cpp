@@ -4,31 +4,47 @@
 
 #include "ARD1939.h"
 
+// address claim failed flag
 #define d49                             10
 
+// not used
 #define d50                              8
 
+// PGN 59904 request message
 #define d31               	0x00EA00
+// PGN 60159 Name
 #define d32         	0x00EAFF
+// not used
 #define d46                   0x00
+// some sort of status 
 #define d47                   0xEA
+// not used
 #define d48                   0x00
 
-#define d29               	0x00EE00
+// pgnpgn60928 claim source address.
+#define d29               	0x00EE00   
+// not used
 #define d30         	0x00EEFF
+// ??
 #define d25                   0x00
+// ??
 #define d26            	0xEE
 #define d27                   0x00
 #define d28            	6
 
+// not used 
 #define d33                  	0x00EE00
 #define d34             	0x00FED8
 
 #define d35                              0x00ECFF
+// pgn60416 Transport connection management
 #define d36				0x00EC00
+// not used
 #define d37                           0xEC
+// priority 7
 #define d38                          7
 
+// pgn60160 trasport portocol multi byte
 #define d39				0x00EB00
 #define d40                          7
 
@@ -235,9 +251,6 @@ byte ARD1939::Init(int v80)
   return canInit();
 }
 
-void ARD1939::end(void) {
-  canEnd();
-}
 
 void ARD1939::Terminate(void)
 {
