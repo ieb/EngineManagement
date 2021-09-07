@@ -1,88 +1,122 @@
+// Demo: NMEA2000 library. Send battery status to the bus.
+//
+//
+//      In this example are shown ways to minimize the size and RAM usage using two techniques:
+//        1) Moving data strictures to PROGMEM vs. using inline constantans when calling a function
+//        2) Reducing the size of NMEA CAN buffer to the min needed.  Use caution with this, as some functions
+//           (specifically fast packet Messages) require bigger buffer. 
+//
+
+
 #include <Arduino.h>
-#include <pins_arduino.h>
-#include <stdlib.h>
-#include <inttypes.h>
-#include <SPI.h>
-#include <Adafruit_MCP23X08.h>
-#include <LiquidCrystal_I2C.h>
-#include "ARD1939.h"
-#include "LowPower.h"
+
+#define USE_MCP_CAN_CLOCK_SET 8
+//#define DEBUG_NMEA2000 1
+
+//#define N2k_CAN_INT_PIN 21
+#include "NMEA2000_CAN.h"       // This will automatically choose right CAN library and create suitable NMEA2000 object
+#include "N2kMessages.h"
+#include <util/crc16.h>
+#include <EEPROM.h>
 
 
 
-// forward declarations
-extern void lcdPrint(int page, int r, int c, int v, const char *fmt);
-extern int initIOExtender();
-extern char extenderStatus();
-extern char j1939Status();
-extern char rs485Status();
-extern byte canCheckError();
-extern void beginButtons();
-
-extern void powerDown();
-extern void readButtons();
-extern void updateDisplay();
+extern void initRPM();
+extern void setupNMEA2000();
 extern void readEngineRPM();
 extern void readCoolant();
-extern void readFuelLevel();
 extern void readVoltages();
-extern void sendRS485();
-extern void sendJ1939();
-extern bool isEnginePowerOn();
+extern void readFuelLevel();
+extern void sendRapidEngineData();
+extern void sendEngineData();
+extern void sendVoltages();
+extern void loadEngineHours();
+extern void saveEngineHours();
+extern void readNTC();
 
 
-#define PIN_RESET 6 // wired to the reset pin. The reset pin has a 10K pullup so at power on
-
-
-void hardReset() {
-  pinMode(PIN_RESET,OUTPUT);
-  digitalWrite(PIN_RESET,LOW);
-}
 
 void setup() {
-  digitalWrite(PIN_RESET,HIGH); // just in case it was low.
-  pinMode(PIN_RESET,INPUT); // this ensures it will float high till reset.
-
   Serial.begin(115200);
   Serial.println(F("Luna monitor start"));
   // ensure SCL and SDA dont power anything during startup.
-  pinMode(SCL, INPUT);
-  digitalWrite(SCL, LOW);
-  pinMode(SDA, INPUT);
-  digitalWrite(SDA, LOW);
-  pinMode(10, INPUT); // CAN CS
-  digitalWrite(10, LOW);
-  pinMode(MOSI, INPUT);
-  digitalWrite(MOSI, LOW);
-  pinMode(MISO, INPUT);
-  digitalWrite(MISO, LOW);
-  pinMode(SCK, INPUT);
-  digitalWrite(SCK, LOW);
   pinMode(3, INPUT); // RPM
   digitalWrite(3, LOW);
   pinMode(5, INPUT); // OIL PRESSURE SWITCH
   digitalWrite(5, LOW);
-  beginButtons();  
+  initRPM();
+  loadEngineHours();
+  setupNMEA2000();
 }
 
-
 void loop() {
-  powerDown();
-  readButtons();
-  if ( isEnginePowerOn() ) {
-    updateDisplay();
-    readEngineRPM();
-    readCoolant();
-    readFuelLevel();
-    readVoltages();
-    //sendRS485();
-    sendJ1939();
-    //blink(5,200); // 2s cycle on for 1s
+  readEngineRPM();
+  readCoolant();
+  readFuelLevel();
+  readVoltages();
+  readNTC();
+  sendRapidEngineData();
+  sendEngineData();
+  sendVoltages();
+  saveEngineHours();
+  NMEA2000.ParseMessages();
+}
+
+union EngineHoursStorage {
+  uint8_t engineHoursBytes[4];
+  uint32_t engineHoursPeriods;
+};
+union CRCStorage {
+  uint8_t crcBytes[2];
+  uint16_t crc;
+};
+
+EngineHoursStorage engineHours;
+uint32_t baseEngineHoursPeriods = 0;
+void loadEngineHours() {
+  uint16_t crc = 0;
+  for (int i = 0; i < 4; i++) {    
+    crc = _crc16_update(crc, EEPROM.read(i+2));
+  }
+  CRCStorage crcStore;
+  crcStore.crcBytes[0] = EEPROM.read(0);
+  crcStore.crcBytes[1] = EEPROM.read(1);
+  if ( crcStore.crc == crc) {
+    // data is valid
+    for (int i = 0; i < 4; i++) {    
+      engineHours.engineHoursBytes[i] = EEPROM.read(i+2);
+    }
+    baseEngineHoursPeriods = engineHours.engineHoursPeriods;
+  }
+}
+
+#define ENGINE_HOURS_PERIOD_MS 15000
+//  engine periods to hours factor 15000/3600000 = 0.004166666667 
+#define ENGINE_HOURS 0.004166666667*engineHours.engineHoursPeriods
+void saveEngineHours() {
+  // the EMS will only be on for a very short time before the engine is started,
+  // so assume the engine hours is the runtime of the EMS.
+  uint32_t engineHoursPeriods = baseEngineHoursPeriods+millis()/ENGINE_HOURS_PERIOD_MS;
+  if ( engineHoursPeriods > engineHours.engineHoursPeriods ) {
+    // minutes has changed.
+    engineHours.engineHoursPeriods = engineHoursPeriods;
+    CRCStorage crcStore;
+    crcStore.crc = 0;
+    for (int i = 0; i < 4; i++) {    
+      crcStore.crc = _crc16_update(crcStore.crc, engineHours.engineHoursBytes[i]);
+    }
+    EEPROM.write(0, crcStore.crcBytes[0]);
+    EEPROM.write(1, crcStore.crcBytes[1]);
+    for (int i = 0; i < 4; i++) {
+      EEPROM.write(i+2, engineHours.engineHoursBytes[i]);
+    }
   }
 }
 
 
-#define PINS_FLYWHEEL 3
+
+
+#define PINS_FLYWHEEL 2
 volatile unsigned long flywheelPulses = 0;
 
 void flywheelPuseHandler() {
@@ -115,7 +149,6 @@ void readEngineRPM() {
     engineRPM = ((measuredFlywheelPulses-lastFlywheelPulses)*FLYWHEEL_CONVERSION_U)/((now-lastFlywheelReadTime)*FLYWHEEL_CONVERSION_L);
     lastFlywheelReadTime = now;
     lastFlywheelPulses = measuredFlywheelPulses; 
-    lcdPrint(1,engineRPM,0,4,"%04d");
   }
 }
 
@@ -153,7 +186,6 @@ void readFuelLevel() {
       fuelLevelLong = 0;
     }
     fuelLevel = 100-fuelLevelLong;
-    lcdPrint(1,fuelLevel,0,17,"%03d");
   }
 }
 
@@ -198,25 +230,27 @@ void readCoolant() {
     for (int i = 1; i < COOLANT_TABLE_LENGTH; i++) {
       if ( coolantReading < coolantTable[i] ) {
           coolantTemperature = coolantInterpolate(i,coolantReading);
-          lcdPrint(1,coolantTemperature,0,11,"%03d");
           return;
       }
     }
     // < 0 and off the ADC scale, so cant interpolate. Should never get here.
     coolantTemperature = 0;
-    lcdPrint(1, coolantTemperature,0,11,"%03d");
   }
 }
 
-#define START_ADC 3
-#define N_ADCS 4
-// stored as voltage*100
-int voltages[4];
-// to scale the voltage V*100 =  V*500*(100+47)/(47*1024);
+#define START_ADC 5
+#define N_ADCS 3
+// stored as voltage
+double voltages[3];
+// to scale the voltage V =  V*5*(100+47)/(47*1024);
 // to keep the calculation integer split
-#define VOLTAGE_SCALE_U 73500 // 500*(100+47)
-#define VOLTAGE_SCALE_L 48128 // (47*1024)
+#define VOLTAGE_SCALE 0.01527177527 // 5*(100+47)/(47*1024)
 #define VOLTAGE_READ_PERIOD 5000
+
+#define ENGINE_BATTERY_VOLTAGE 0
+#define SERVICE_BATTERY_VOLTAGE 1
+#define ALTERNATOR_VOLTAGE 2
+
 
 void readVoltages() {
   static unsigned long lastVotageRead = 0;
@@ -225,780 +259,243 @@ void readVoltages() {
   if ( now > lastVotageRead+VOLTAGE_READ_PERIOD ) {
     lastVotageRead = now;
     for (int i = 0; i < N_ADCS; i++) {
-      unsigned long reading = analogRead(i+START_ADC);
-      unsigned long v100 = (reading*VOLTAGE_SCALE_U)/VOLTAGE_SCALE_L; 
-      voltages[i] = v100;
-      lcdPrint(1,voltages[i]/10,1,(i*4)+5,"%03d");
+      voltages[i] = VOLTAGE_SCALE*analogRead(i+START_ADC);
     }
   }
 }
 
-
-
-
-LiquidCrystal_I2C lcd(0x27,20,4);  // set the LCD address to 0x27 for a 16 chars and 2 line display
-void initLCD() {
-  lcd.init();                      // initialize the lcd 
-  // Print a message to the LCD.
-  lcd.backlight();
-            // 012345678901234567890   
-  lcd.print(F("Luna Engine Control  "));
-  lcd.setCursor(0,1);  
-            // 012345678901234567890   
-  lcd.print(F("Startup              "));
-}
-
-void lcdUpdateState(int c, int r, char status) {
-    lcd.setCursor(c,r);
-    lcd.print(status);
-}
-
-
-#define DISPLAY_CYCLE_RATE 5000
-static int displayPage = -1;
-static unsigned long lastDisplayChange = 0;
-void updateDisplay() {
-  // probably need a long to do this calc
-  unsigned long now = millis();
-  if ( now > lastDisplayChange+DISPLAY_CYCLE_RATE ) {
-    lastDisplayChange = now;
-    if ( displayPage < 10 ) {
-      displayPage = (displayPage+1)%2;
-    }
-    switch(displayPage) {
-      case 0:
-        lcd.setCursor(0,0); 
-        lcd.print(F("Luna Engine Control ")); 
-        lcd.setCursor(0,1); 
-        lcd.print(F("J1939 -, RS485 -    ")); 
-        lcdUpdateState(6,1,j1939Status());
-        lcdUpdateState(15,1,rs485Status());
-        lcd.setCursor(0,2); 
-        lcd.print(F("Sensors G, Ports -  ")); 
-        lcdUpdateState(17,2,extenderStatus());
-        lcd.setCursor(0,3); 
-        lcd.print(F("Alarms None         ")); 
-        break;
-      case 1:    
-        lcd.setCursor(0,0);  
-                  // 012345678901234567890   
-        lcd.print(F("RPM:---- C:--- F:---"));
-        lcd.setCursor(0,1);  
-                  // 012345678901234567890   
-        lcd.print(F("VOLT:---,---,---,---"));
-        lcd.setCursor(0,2);  
-                  // 012345678901234567890   
-        lcd.print(F("TEMP1-3:---,---,--- "));
-        lcd.setCursor(0,3);  
-        lcd.print(F("TEMP4-6:---,---,--- "));
-        lcdPrint(1,engineRPM,0,4,"%04d");
-        lcdPrint(1,coolantTemperature,0,11,"%03d");
-        lcdPrint(1,fuelLevel,0,17,"%03d");
-
-        for (int i = 0; i < N_ADCS; i++) {
-          lcdPrint(1,voltages[i]/10,1,(i*4)+5,"%03d");
-        }
-      break;
-    }
-  }
-}
-
-void switchDisplay(int page) {
-  displayPage = page;
-  lastDisplayChange = 0;
-  updateDisplay();
-}
-void resumeDisplay() {
-  displayPage = 1;
-  lastDisplayChange = 0;
-  updateDisplay();
-}
-
-void holdDisplay(int page) {
-  displayPage = page;
-  lastDisplayChange = millis();
-}
-
-void lcdPrint(int page, int v, int r, int c, const char *fmt) {
-  if ( page == displayPage ) {
-    char buffer[5];
-    lcd.setCursor(c,r);
-    sprintf(&buffer[0],fmt, v);
-    lcd.print(&buffer[0]);
-  }
-}
-
-
-/*
- * VP runs J1939 at 250 kbit
- * Source address for engine is 0x00
- * lookup pgns in 1939-71 to get the SPN format.
- * pgn65262 page 371 ET1 - Engine temperature 1 every 1000ms SPNs, 110 Engine coolant temperature, 175 Engine oil temperature
- * pgn65253 HOURS - Engine hours, revolutions every 10s, 247 Engine total hours of operation
- * pgn61444 EEC1 - Electronic engine controller 1, 512 Drivers demand engine - percent torque, 
- * 
- * pgn65351 Engine information, see docs/fulltext01.pdf page 24, Vp custom.
- * 
- * 
- * Can DBC editor
- * https://docs.google.com/spreadsheets/d/1X6VQBkqRX0a6QLd4oFbAos_ps3zrpVc86CVGd67DoSs/edit
- * 
- * 
- */
-#define EMS_ADDRESS 0
-// 21 bit ID number
-#define EMS_IDENTITY 123
-//  
-#define EMS_MANUFACTURER_CODE 1
-#define EMS_FUNCTION_INSTANCE 0
-#define EMS_ECU_INSTANCE 0
-#define EMS_FUNCTION 0
-#define EMS_VEHICLE_SYSTEM 0
-#define EMS_VEHICLE_SYSTEM_INSTANCE 0
-#define EMS_INDUSTRY_GROUP 0
-#define EMS_ARBITRARY_ADDRESS_CAPABLE 0
-
-ARD1939 j1939;
-static bool j1939Ok = false;
-void initJ1939() {
-  // setup pin directions.
-  pinMode(10, OUTPUT); 
-  // drive outputs high before initialising.
-  digitalWrite(10, HIGH);
-
-  Serial.println(F("j1939 Init Started"));
-
-  // Initialize the J1939 protocol including CAN settings
-  // calls Begin
-  if(j1939.Init(SYSTEM_TIME) != 0) {
-    j1939Ok = false;
-    Serial.print(F("CAN Controller Init Failed.\n\r"));
-    return;
-  }
-  j1939Ok = true;
-  Serial.print(F("CAN Controller Init OK.\n\r\n\r"));
-    
-  // Set the preferred address and address range
-  j1939.SetPreferredAddress(EMS_ADDRESS);
-  j1939.SetAddressRange(EMS_ADDRESS, ADDRESSRANGETOP);
-  
-  // Set the message filter
-  //j1939.SetMessageFilter(59999);
-  
-  //j1939.SetMessageFilter(65242);
-  //j1939.SetMessageFilter(65259);
-  //j1939.SetMessageFilter(65267);
-  
-  // Set the NAME
-  j1939.SetNAME(EMS_IDENTITY,
-                EMS_MANUFACTURER_CODE,
-                EMS_FUNCTION_INSTANCE,
-                EMS_ECU_INSTANCE,
-                EMS_FUNCTION,
-                EMS_VEHICLE_SYSTEM,
-                EMS_VEHICLE_SYSTEM_INSTANCE,
-                EMS_INDUSTRY_GROUP,
-                EMS_ARBITRARY_ADDRESS_CAPABLE);
-}
-
-char j1939Status() {
-  if ( !j1939Ok ) {
-    return 'F';
-  } else if ( canCheckError() ) { 
-    return 'E';
-  } 
-  return 'G';
-}
-
-struct PGN61444 {
-  byte engineTorqueMode;
-  byte requestedTorque;
-  byte deliveredTorque;
-  uint16_t engineSpeed;
-  byte controlSourceAddress;
-  byte engineStarterMode;
-  byte engineDemantTorque;
+// NTCLG100E2 10K
+int16_t tcurveNTCLG100E2[] = {
+  783, //0C = 1024*32554/(32554+10000)
+  734, //5C = 1024*25339/(25339+10000)
+  681, //10C =  1024*19872/(19872+10000)
+  625, //15C 1024*15698/(15698+10000)
+  568, //20 1024*12488/(12488+10000)
+  512, //25 1024*10000/(10000+10000)
+  456, //30 1024*8059/(8059+10000)
+  404, //35 1024*6535/(6535+10000)
+  356, //40 1024*5330/(5330+10000)
+  311, //45 1024*4372/(4372+10000)
+  271, //50 1024*3605/(3605+10000)
+  235, //55 1024*2989/(2989+10000)
+  204, //60 1024*2490/(2490+10000)
+  203, //65 1024*2476/(2476+10000)
+  203, //70 1024*2476/(2476+10000)
+  203, //75 1024*2476/(2476+10000)
+  203, //80 1024*2476/(2476+10000)
+  203, //85 1024*2476/(2476+10000)
+  203, //90 1024*2476/(2476+10000)
+  203, //95 1024*2476/(2476+10000)
+  203, //100 1024*2476/(2476+10000)
+  203, //105 1024*2476/(2476+10000)
+  203 //110 1024*2476/(2476+10000)
+};
+// https://www.gotronic.fr/pj2-mf52type-1554.pdf
+// 5v supply, 10K resistor
+int16_t tcurveNMF5210K[] = {
+  930, //0C = 1024*98960/(98960+10000)
+  736, //5C = 1024*25580/(25580+10000)
+  682, //10C =  1024*20000/(20000+10000)
+  626, //15C 1024*15760/(15760+10000)
+  569, //20 1024*12510/(12510+10000)
+  512, //25 1024*10000/(10000+10000)
+  456, //30 1024*8048/(8048+10000)
+  404, //35 1024*6518/(6518+10000)
+  355, //40 1024*5312/(5312+10000)
+  310, //45 1024*4354/(4354+10000)
+  270, //50 1024*3588/(3588+10000)
+  235, //55 1024*2989/(2989+10000)
+  203, //60 1024*2476/(2476+10000)
+  176, //65 1024*2072/(2072+10000)
+  152, //70 1024*1743 /(1743+10000)
+  131, //75 1024*1473 /(1473 +10000)
+  114, //80 1024*1250/(1250+10000)
+  99, //85 1024*1065/(1065+10000)
+  85, //90 1024*911/(911+10000)
+  74, //95 1024*782.4/(782.4+10000)
+  65, //100 1024*674.4 /(674.4 +10000)
+  56, //105 1024*583.6/(583.6+10000)
+  49 //110 1024*506.6/(506.6+10000)
 };
 
-union PGN61444Msg {
-  byte pgn61444Data[sizeof(PGN61444)];
-  PGN61444 pgn61444;
-};
-
-#define STARTER_NOT_REQUESTED 0b0000 // start not requested
-#define STARTER_ACTIVE_NO_GEAR 0b0001 //starter active, gear not engaged
-#define STARTER_ACTIVE_GEAR 0b0010 //starter active, gear engaged
-#define STARTER_FINISHED 0b0011 //start finished; starter not active after having been actively engaged (after 50ms mode goes to 0000) 0100 starter inhibited due to engine already running
-#define STARTER_NOT_READY_PREHEAT 0b0101 //starter inhibited due to engine not ready for start (preheating)
-#define STARTER_INHIBIT_GEAR 0b0110 //starter inhibited due to driveline engaged or other transmission inhibit
-#define STARTER_INHIBIT_IMOBIL 0b0111 //starter inhibited due to active immobilizer
-#define STARTER_INHIBIT_OVER_TEMP 0b1000 //starter inhibited due to starter over-temp
-#define STARTER_INHIBIT_UNOWN 0b1100 //starter inhibited - reason unknown
-#define STARTER_ERROR 0b1110 //error
-#define STARTER_NA 0b1111 //not available
+#define tcurve tcurveNMF5210K
 
 
-#define J1939_UPDATE_PERIOD 500
-void sendJ1939() {
-
-  static unsigned long j1939Update = 0;
-  static int nCounter = 0;
-
-  unsigned long now = millis();
-  if ( now < j1939Update+J1939_UPDATE_PERIOD ) {
-    return;
-  }
-  j1939Update = now;
-
-
- // J1939 Variables
-  byte nMsgId;
-  byte nDestAddr;
-  byte nSrcAddr;
-  byte nPriority;
-  byte nJ1939Status;
-  
-  int nMsgLen;
-  
-  long lPGN;
-  
-  byte pMsg[J1939_MSGLEN];
-  
-  // Variables for proof of concept tests
-  //byte msgFakeNAME[] = {0, 0, 0, 0, 0, 0, 0, 0};
-  byte msgLong[] = {0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45};
-  
-  // Establish the timer base in units of milliseconds
-  delay(SYSTEM_TIME);
-  
-  // Call the J1939 protocol stack
-  nJ1939Status = j1939.Operate(&nMsgId, &lPGN, &pMsg[0], &nMsgLen, &nDestAddr, &nSrcAddr, &nPriority);
-  switch(nJ1939Status) {
-    case ADDRESSCLAIM_INPROGRESS:
-    Serial.print(F("Address Claim Inprogress"));
-    break;
-    case ADDRESSCLAIM_FAILED:
-    Serial.print(F("Address Claim Failed"));
-    break;
-    case NORMALDATATRAFFIC:
-    Serial.print(F("Normal"));
-    break;
-  }
-  switch(nMsgId) {
-    case J1939_MSG_PROTOCOL:
-    Serial.print(F(" MSG Protocol "));
-    break;
-    case J1939_MSG_APP:
-    Serial.print(F(" MSG App "));
-    break;
-    default:
-    Serial.print(F(" MSG "));
-    Serial.print(nMsgId);
-    break;   
-  }
-  Serial.print(lPGN);
-  Serial.print(F("  "));
-  Serial.print(nSrcAddr);
-  Serial.println(".");
-
-  nSrcAddr = j1939.GetSourceAddress();
-  
-  // SPN 899 1.1 4 bits engine torque mode 0x00, no request
-  // SPN 512 2   1 byte requested torque 125 no torque
-  // SPN 513 3   1 byte delivered torque 125 no torque
-  // SPN 190 4   2 bytes engine speed  0.125 rpm per bit
-  // SPN 1483 6  1 byte source address controlling engine
-  // SPN 1675 7.1 4 bits Engine starter mode
-  // SPN 2432 8 1 byte engine torque demand
-
-
-
-  PGN61444Msg engineUpdate;
-  engineUpdate.pgn61444.engineTorqueMode = 0x00;
-  engineUpdate.pgn61444.requestedTorque = 128;
-  engineUpdate.pgn61444.deliveredTorque = 128;
-  engineUpdate.pgn61444.engineSpeed = 2000*8;
-  engineUpdate.pgn61444.controlSourceAddress = 0;
-  engineUpdate.pgn61444.engineStarterMode = STARTER_NOT_REQUESTED;
-  engineUpdate.pgn61444.engineDemantTorque = 128;
-  j1939.Transmit(3, 61444, 0, GLOBALADDRESS, engineUpdate.pgn61444Data, sizeof(PGN61444));
-
-  /*
-  // Block certain claimed addresses
-  if(nMsgId == J1939_MSG_PROTOCOL)
-  {
-    if(lPGN == 0x00EE00)
-    {
-      if(nSrcAddr >= 129 && nSrcAddr <= 134)
-        j1939.Transmit(6, 0x00EE00, nSrcAddr, 255, msgFakeNAME, 8);
-    
-    }// end if
-    
-  }// end if
-  */
-  
-  /*
-  // Send out a periodic message with a length of more than 8 bytes
-  // BAM Session
-  if(nJ1939Status == NORMALDATATRAFFIC)
-  {
-    nCounter++;
-    
-    if(nCounter == (int)(5000/SYSTEM_TIME))
-    {
-      nSrcAddr = j1939.GetSourceAddress();
-      j1939.Transmit(6, 59999, nSrcAddr, 255, msgLong, 15);
-      nCounter = 0;
-      
-    }// end if
-  
-  }// end if
-  */
-  
-  
-  // Send out a periodic message with a length of more than 8 bytes
-  // RTS/CTS SessionNORMALDATATRAFFIC
-  if(nJ1939Status == NORMALDATATRAFFIC)
-  {
-    nCounter++;
-    
-    if(nCounter == (int)(5000/SYSTEM_TIME))
-    {
-      nSrcAddr = j1939.GetSourceAddress();
-      j1939.Transmit(6, 59999, nSrcAddr, 0x33, msgLong, 15);
-      nCounter = 0;
-      
-    }// end if
-  
-  }// end if
-  
-  
-  // Check for reception of PGNs for our ECU/CA
-  if(nMsgId == J1939_MSG_APP)
-  {
-    // Check J1939 protocol status
-    switch(nJ1939Status)
-    {
-      case ADDRESSCLAIM_INPROGRESS:
-        Serial.println("Claim in progress");
-      
-        break;
-        
-      case NORMALDATATRAFFIC:
-        Serial.println("Normal data traffic");
-      
-        // Determine the negotiated source address
-        //byte nAppAddress;
-        //nAppAddress = j1939.GetSourceAddress();
-        
-       break;
-        
-      case ADDRESSCLAIM_FAILED:
-        Serial.println("Address claim failed");
-        break;
-      
-    }// end switch(nJ1939Status)
-    
-  }// end if  // put your main code here, to run repeatedly:
-}
-
-uint16_t crc_ccitt (const uint8_t * str, unsigned int length) {
-  uint16_t crc = 0;
-  for (unsigned int i = 0; i < length; i++) {
-    uint8_t data = str[i];
-    data ^= crc & 0xff;
-    data ^= data << 4;
-    crc = ((((uint16_t)data << 8) | (crc >> 8)) ^ (uint8_t)(data >> 4) 
-                    ^ ((uint16_t)data << 3));
-  }
-  return crc;  
-}
-
-void writeNMEA0183(char *output) {
-  unsigned int len = strlen(output);
-  uint16_t checksum = crc_ccitt((const uint8_t *)output, len);
-  Serial.print(output);
-  Serial.print(',');
-  Serial.println(checksum,HEX);
-}
-#define FAST_UPDATE_PERIOD 1000
-#define SLOW_UPDATE_PERIOD 10005
-#define SLOWEST_UPDATE_PERIOD 20003
-
-void sendRS485() {
-  static unsigned long fastUpdate = 0;
-  static unsigned long slowUpdate = 0;
-  static unsigned long slowestUpdate = 0;
-  static char output[16];
-  
-  unsigned long now = millis();
-  if ( now > fastUpdate+FAST_UPDATE_PERIOD ) {
-    fastUpdate = now;
-    // RPM and Coolant Temp
-    sprintf(&output[0],"$LUFUP,%04d,%03d",engineRPM,coolantTemperature);
-    writeNMEA0183(&output[0]);    
-  }
-  if ( now > slowUpdate+SLOW_UPDATE_PERIOD ) {
-    slowUpdate = now;
-    // voltages
-    for(int i = 0; i < N_ADCS; i++) {
-      sprintf(&output[0],"$LUVLT,%1d,%04d",i,voltages[i]);
-      writeNMEA0183(&output[0]);
-    }   
-  }
-  if ( now > slowestUpdate+SLOWEST_UPDATE_PERIOD ) {
-    slowestUpdate = now;    
-    sprintf(&output[0],"$LUFUL,%03d",fuelLevel);
-    writeNMEA0183(&output[0]);
-  }
-}
-
-char rs485Status() {
-  return 'G';
-}
-
-
-
-  
-
-
-// just came out of sleep.
-void initPeripherals() {
-  Serial.println(F("Starting all peripherals"));
-  initIOExtender();
-  initLCD();
-  lcd.setCursor(0,3);
-             //01234567890123456789  
-  lcd.print(F("Start flywheel...   "));
-  initRPM();
-  lcd.setCursor(0,3);  
-             //01234567890123456789  
-  lcd.print(F("Start j1939...      "));
-  initJ1939();
-  lcd.setCursor(0,3);  
-             //01234567890123456789  
-  lcd.print(F("Ready.              "));
-  holdDisplay(3);
-}
-
-Adafruit_MCP23X08 mcp;
-static bool extenderOk = false;
-#define RELAY_ON LOW
-#define RELAY_OFF HIGH
-int initIOExtender() {
-  if (!mcp.begin_I2C()) {
+int16_t ntcTemperature(int16_t reading) {
+  if ( reading > tcurve[0] ) {
     return 0;
   }
-  for (int i = 0; i < 8; i++) {
-    mcp.pinMode(i, OUTPUT);
-    mcp.digitalWrite(i, RELAY_OFF);
+  for (int i = 1; i < 23; i++) {
+    if ( reading > tcurve[i] ) {
+      return (i*50)+((tcurve[i-1]-reading)*50)/(tcurve[i-1]-tcurve[i]);
+    }
   }
-  extenderOk = true;
-  return 1;
-}
-
-char extenderStatus() {
-  if ( extenderOk ) {
-    return 'G';
-  } else {
-    return 'F';
-  }
+  return 1150;
 }
 
 
-
-
-bool enginePowerOn = false;
-#define BUTTON_READ_PERIOD 200
-#define MAX_BUTTON_PRESS 300 // 60000/200 ie 60s
-
-// IO Extender outputs
-#define V12V_POWER 0
-#define V12V40A_POWER 1
-#define START_POWER 2
-#define STOP_POWER 3
-#define GLOW_POWER 4
-
-#define PIN_ONOFF_BUTTON 2
-#define PIN_START_BUTTON 7
-#define PIN_STOP_BUTTON 8
-#define PIN_GLOW_BUTTON 9
-#define PIN_MCU_POWER 4
-
-
-#define BTN_ONOFF 0
-#define BTN_START 1
-#define BTN_STOP 2
-#define BTN_GLOW 3
-#define BUTTON_PRESSED(i) (!stateNow[i] && buttonState[i])
-#define BUTTON_RELEASED(i) (stateNow[i] && !buttonState[i])
-
-const int button_pins[4] = {PIN_ONOFF_BUTTON,PIN_START_BUTTON,PIN_STOP_BUTTON,PIN_GLOW_BUTTON};
-bool buttonState[4] = {1,1,1,1};
-
-
-
-
-void beginButtons() {
-  pinMode(PIN_MCU_POWER, OUTPUT); // POWERUP
-  digitalWrite(PIN_MCU_POWER, HIGH); // Relay off.
-
-  Serial.println(F("Done Setup IO"));
-  for (int i = 0; i < 4; i++) {
-    pinMode(button_pins[i], INPUT);
-    Serial.print(F("Pin"));
-    Serial.print(i);
-    Serial.print(F(","));
-    buttonState[i] = digitalRead(button_pins[i]);
-    Serial.println(buttonState[i]);    
-  }
-}
-
-// only used for wakeup
-void powerWakeHandler() {
-}
-
-
-void powerDown() {
-  static unsigned long startSleepMillis = 0;
+#define START_NTC 2
+#define N_NTC 3
+#define NTC_READ_PERIOD 10000
+// Cx10
+uint16_t temperature[3];
+void readNTC() {
+  static unsigned long lastNTCRead = 0;
+  // probably need a long to do this calc
   unsigned long now = millis();
-  if (enginePowerOn) {
-    startSleepMillis = 0;
-  } else {
-    if ( startSleepMillis == 0 ) {
-      // stay awake for 30s after power down
-      startSleepMillis = now + 30000;
-    } else if ( now > startSleepMillis) {
-      // go to sleep
-      Serial.println(F("Sleeping....."));
-      delay(100);
-      // bring everything into a low power state, the only way out is to restart
-      Wire.end();
-      SPI.end();
-
-      pinMode(SCL, INPUT); 
-      digitalWrite(SCL, LOW);
-      pinMode(SDA, INPUT); 
-      digitalWrite(SDA, LOW);
-      // switch all non SPI pins to floating inputs to ensure they dont power the board.
-      pinMode(10, INPUT); 
-      digitalWrite(10, LOW);
-      pinMode(MOSI, INPUT);
-      digitalWrite(MOSI, LOW);
-      pinMode(MISO, INPUT);
-      digitalWrite(MISO, LOW);
-      pinMode(SCK, INPUT);
-      digitalWrite(SCK, LOW);
-      // Note the only way to restart the Can shield is to perform a reset on the MCU
-
-      // make sure the flywheel doesnt wake up.
-      Serial.end();
-      detachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL));
-      attachInterrupt(digitalPinToInterrupt(PIN_ONOFF_BUTTON), powerWakeHandler, LOW);
-      LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); 
-      Serial.begin(115300);
-      Serial.println("Wokeup...");
-      delay(100);
-      // the bootloader on pro mini's has a but that causes a 
-      // watchdog reset to go into an infinite loop
-      // this jumps to 0, but may still not work to reset all the 
-      // IO pins properly.
-      hardReset();
-      // doesnt get here.
+  if ( now > lastNTCRead+NTC_READ_PERIOD ) {
+    lastNTCRead = now;
+    for (int i = 0; i < N_NTC; i++) {
+      temperature[i] = ntcTemperature(analogRead(i+START_NTC));
     }
   }
 }
 
-bool isEnginePowerOn() {
-  return enginePowerOn;
+
+
+
+
+
+
+
+#define NMEA2000_DEV_ENGINE      0
+#define NMEA2000_DEV_BATTERIES   1
+
+const tNMEA2000::tProductInformation EMSProductInformation PROGMEM={
+                                       1300,                        // N2kVersion
+                                       100,                         // Manufacturer's product code
+                                       "EMS",    // Manufacturer's Model ID
+                                       "1.1",     // Manufacturer's Software version code
+                                       "1.1",      // Manufacturer's Model version
+                                       "1",                  // Manufacturer's Model serial code
+                                       0,                           // SertificationLevel
+                                       1                            // LoadEquivalency
+                                      };                                      
+
+const tNMEA2000::tProductInformation BatteriesProductInformation PROGMEM={
+                                       1300,                        // N2kVersion
+                                       100,                         // Manufacturer's product code
+                                       "BMS",    // Manufacturer's Model ID
+                                       "1.1",     // Manufacturer's Software version code
+                                       "1.1",      // Manufacturer's Model version
+                                       "1",                  // Manufacturer's Model serial code
+                                       0,                           // SertificationLevel
+                                       1                            // LoadEquivalency
+                                      };                                      
+
+const char EMSManufacturerInformation [] PROGMEM = "me"; 
+const char EMSInstallationDescription1 [] PROGMEM = "EMS"; 
+const char EMSInstallationDescription2 [] PROGMEM = "NA"; 
+
+
+void setupNMEA2000() {
+
+
+  NMEA2000.SetDeviceCount(2);
+  // Set Configuration information
+  NMEA2000.SetProgmemConfigurationInformation(EMSManufacturerInformation,EMSInstallationDescription1,EMSInstallationDescription2);
+
+  // Set Product information
+  NMEA2000.SetProductInformation(&EMSProductInformation, NMEA2000_DEV_ENGINE );
+  NMEA2000.SetProductInformation(&BatteriesProductInformation, NMEA2000_DEV_BATTERIES );
+
+
+  NMEA2000.SetDeviceInformation(3, // Unique number. Use e.g. Serial number.
+                                160, // Device function=Engine Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
+                                50, // Device class=Propulsion. See codes on  http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
+                                2085, // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
+                                4, // Marine
+                                NMEA2000_DEV_ENGINE
+                                );
+  NMEA2000.SetDeviceInformation(4, // Unique number. Use e.g. Serial number.
+                                170, // Device function=Engine Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
+                                35, // Device class=Propulsion. See codes on  http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
+                                2085, // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
+                                4, // Marine
+                                NMEA2000_DEV_BATTERIES
+                                );
+
+  // debugging with no chips connected.
+#ifdef DEBUG_NMEA2000
+  NMEA2000.SetForwardStream(&Serial);
+  NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText);
+  NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
+  NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText); // Uncomment this, so you can test code without CAN bus chips on Arduino Mega
+#endif
+
+  // this is a node, we are not that interested in other traffic on the bus.
+  NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly,23);
+  NMEA2000.EnableForward(false);
+  const unsigned long engineMessages[] = {  
+    127488L, // Rapid engine ideally 0.1s
+    127489L, // Dynamic engine 0.5s
+    127505L, // Tank Level 2.5s
+    130316L, // Extended Temperature 2.5s
+  0};
+  NMEA2000.ExtendTransmitMessages(engineMessages,NMEA2000_DEV_ENGINE);
+  const unsigned long batteryMessages[] = {  127508L,0L };
+  NMEA2000.ExtendTransmitMessages(batteryMessages,NMEA2000_DEV_BATTERIES);
+  NMEA2000.SetN2kCANMsgBufSize(2);
+  NMEA2000.SetN2kCANSendFrameBufSize(15);
+  NMEA2000.Open();
 }
 
-/**
- * The onoff button is edge triggerd, the other buttons are read.
- */ 
-void readButtons() {
-  static unsigned long lastButtonRead = 0;
-  static uint16_t ticks[4] = {0,0,0,0};
-  // at power up, all the lines are pulled high by an external resistor
-  // so the button state stats as all 1's.
+
+#define RAPID_ENGINE_UPDATE_PERIOD 1000
+
+void sendRapidEngineData() {
+  static unsigned long lastRapidEngineUpdate=0;
   unsigned long now = millis();
-  if ( now > lastButtonRead+BUTTON_READ_PERIOD ) {
-    lastButtonRead = now;
-    int stateNow[4];
-    int npressed = 0;
-    for (int i = 0; i < 4; i++) {
-      stateNow[i] = digitalRead(button_pins[i]);
-      if (!stateNow[i]) npressed++;
-    }
-    if ( npressed > 1) {
-      Serial.print(F("Buttons low, power needed, "));
-      Serial.println(npressed);
-
-      // multiple buttons pressed, ignore
-      return;
-    }
-    for(int i = 0; i < 4; i++) {
-      // 1 == voltage high, button not pressed
-      // 0 == voltage low, button pressed
-      if ( buttonState[i] == stateNow[i] ) {
-        // no change in state, after being acted on.
-        // buttonState is updated once the button press has been acted on.
-        ticks[i] = 0;
-      } else {
-        ticks[i]++;
-      }
-      if ( !stateNow[i] && ticks[i] > MAX_BUTTON_PRESS ) {
-        // button has been pressed for 60s, is this a short ?
-        // force button off, ie high
-        stateNow[i] = 1;
-        Serial.println(F("Button Short"));
-      }
-      if ( ticks[i] > 0 ) {
-        // state has remained the same for 2x read period, not a bounce.
-        switch(i) {
-          case BTN_ONOFF:
-            if (BUTTON_PRESSED(i)) {
-              Serial.println(F("OnOff pressed"));
-              // button press detected
-              if ( enginePowerOn  ) {
-                // power down
-                  // make certain start and glow are off.
-                  mcp.digitalWrite(START_POWER,RELAY_OFF);
-                  mcp.digitalWrite(GLOW_POWER,RELAY_OFF);
-                  mcp.digitalWrite(STOP_POWER,RELAY_OFF);
-                  mcp.digitalWrite(V12V40A_POWER, RELAY_OFF); // 40A 12V power.
-                  mcp.digitalWrite(V12V_POWER, RELAY_OFF); // 12v peripherals
-                  digitalWrite(PIN_MCU_POWER,RELAY_OFF); // 8v and 5v
-                  enginePowerOn = false;
-                  Serial.println(F("Reboot"));
-                  Serial.end();
-                  delay(100);
-                  hardReset();
-                  // never gets here after the reset.
-
-              } else {
-                  Serial.println(F("Power On"));
-                  // power is off, go through power on sequence
-                  // this can be done with delays rather than looping.
-                  digitalWrite(PIN_MCU_POWER,RELAY_ON); // 8v and 5v
-                  delay(100); // let 8v and 5v units startup.
-                  initPeripherals();
-                  // make certain start and glow are off, before powering up 12v
-                  mcp.digitalWrite(START_POWER,RELAY_OFF);
-                  mcp.digitalWrite(GLOW_POWER,RELAY_OFF);
-                  mcp.digitalWrite(STOP_POWER,RELAY_OFF);
-
-                  delay(100);
-                  mcp.digitalWrite(V12V_POWER, RELAY_ON); // 12v peripherals
-                  delay(100);
-                  mcp.digitalWrite(V12V40A_POWER, RELAY_ON); // 40A 12V power.
-                  enginePowerOn = true;
-              }
-              buttonState[i] = stateNow[i];
-            } else if ( BUTTON_RELEASED(i)) {
-              Serial.println(F("OnOff released"));
-              buttonState[i] = stateNow[i];
-            }
-          break;
-          case BTN_START:
-            // the start button is press on, release off.
-            if ( BUTTON_PRESSED(i)  ) {
-              Serial.println(F("Start pressed"));
-              if ( enginePowerOn ) {
-                // only if the engine is powered on.
-                if ( coolantTemperature < 50 ) {
-                  mcp.digitalWrite(GLOW_POWER, RELAY_ON); // force glow on
-                } else {
-                  mcp.digitalWrite(GLOW_POWER, RELAY_OFF); // force glow off
-                }
-                mcp.digitalWrite(STOP_POWER, RELAY_OFF); // stop relay off
-                mcp.digitalWrite(START_POWER, RELAY_ON); // start
-                Serial.println(F("Starting"));
-              } else {
-                Serial.println(F("Start ignored"));
-              }
-              buttonState[i] = stateNow[i];
-            } else if ( BUTTON_RELEASED(i) ) {
-              Serial.println(F("Start released"));
-            // turn start sequence off, regardless
-              mcp.digitalWrite(STOP_POWER, RELAY_OFF); // stop relay off
-              mcp.digitalWrite(START_POWER, RELAY_OFF);
-              mcp.digitalWrite(GLOW_POWER, RELAY_OFF);
-              buttonState[i] = stateNow[i];
-              Serial.println(F("Not Starting"));
-            }
-
-            // could get the engine temp and decide to turn the glow plugs on automatically.
-            // below 60C they are supposed to be turned on
-            // if we did this then we would need to 
-            // start
-            break;
-          case BTN_STOP:
-            // stop button is press on, release off.
-            if ( BUTTON_PRESSED(i) ) {
-              Serial.println(F("Stop pressed"));
-              mcp.digitalWrite(START_POWER, RELAY_OFF);
-              mcp.digitalWrite(GLOW_POWER, RELAY_OFF);
-              mcp.digitalWrite(STOP_POWER, RELAY_ON); // stop relay on
-              buttonState[i] = stateNow[i];
-              Serial.println(F("Stopping"));
-            } else if (BUTTON_RELEASED(i) ) {
-              Serial.println(F("Stop released"));
-              mcp.digitalWrite(START_POWER, RELAY_OFF);
-              mcp.digitalWrite(GLOW_POWER, RELAY_OFF);
-              mcp.digitalWrite(STOP_POWER, RELAY_OFF); // stop relay off
-              buttonState[i] = stateNow[i];
-              Serial.println(F("Not Stopping"));
-            }
-            break;
-          case BTN_GLOW:
-            // glow button is press on, release off
-            // glow
-            if ( BUTTON_PRESSED(i) ) {
-              Serial.println(F("Glow pressed"));
-              if ( enginePowerOn ) {
-                mcp.digitalWrite(START_POWER, RELAY_OFF);
-                mcp.digitalWrite(GLOW_POWER, RELAY_ON); // glow on
-                mcp.digitalWrite(STOP_POWER, RELAY_OFF); 
-                Serial.println(F("Glow on"));
-              } else {
-                Serial.println(F("Glow button ignored"));
-              }
-              buttonState[i] = stateNow[i];
-            } else if (BUTTON_RELEASED(i) ) {
-              Serial.println(F("Glow released"));
-              mcp.digitalWrite(START_POWER, RELAY_OFF);
-              mcp.digitalWrite(GLOW_POWER, RELAY_OFF); // glow off
-              mcp.digitalWrite(STOP_POWER, RELAY_OFF);
-              buttonState[i] = stateNow[i];
-              Serial.println(F("Glow off"));
-            }
-            break;
-        }
-      }
-    }
+  if ( now > lastRapidEngineUpdate+RAPID_ENGINE_UPDATE_PERIOD ) {
+    lastRapidEngineUpdate = now;
+    // PGN127488
+    tN2kMsg N2kMsg;
+    SetN2kEngineParamRapid(N2kMsg, 0, engineRPM);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
   }
 }
 
+#define ENGINE_UPDATE_PERIOD 10000
 
-// provide a sign of life on the board.
-#define LED_PERIODS 10
-void blink(int onAt, int period) {
-  static unsigned long lastBlink = 0;
-  static uint8_t ticks = LED_PERIODS;
+void sendEngineData() {
+  static unsigned long lastEngineUpdate=0;
   unsigned long now = millis();
-  if ( now > lastBlink+period ) {
-    lastBlink = now;
-    ticks--;
-    if ( ticks == onAt) {
-      digitalWrite(LED_BUILTIN, HIGH);
-    } else if ( ticks == 0) {
-      digitalWrite(LED_BUILTIN, LOW);
-      ticks = LED_PERIODS;
-    }
+  if ( now > lastEngineUpdate+ENGINE_UPDATE_PERIOD ) {
+    lastEngineUpdate = now;
+    // PGN127489
+
+    tN2kMsg N2kMsg;
+    SetN2kEngineDynamicParam(N2kMsg, 0, N2kDoubleNA, N2kDoubleNA, CToKelvin(coolantTemperature), voltages[ALTERNATOR_VOLTAGE],
+                      N2kDoubleNA, ENGINE_HOURS, N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kInt8NA,0,0);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
+
+    // always send the fuel level data.
+    SetN2kFluidLevel(N2kMsg,0,N2kft_Fuel,fuelLevel,60);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
   }
 }
 
 
+
+#define VOLTAGE_UPDATE_PERIOD 5000
+
+void sendVoltages() {
+  static unsigned long lastVoltageUpdate=0;
+  unsigned long now = millis();
+  if ( now > lastVoltageUpdate+VOLTAGE_UPDATE_PERIOD ) {
+    lastVoltageUpdate = now;
+
+
+
+    tN2kMsg N2kMsg;
+    SetN2kDCBatStatus(N2kMsg,0, voltages[SERVICE_BATTERY_VOLTAGE], N2kDoubleNA, N2kDoubleNA, 0);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
+    SetN2kDCBatStatus(N2kMsg,1, voltages[ENGINE_BATTERY_VOLTAGE], N2kDoubleNA, N2kDoubleNA, 1);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
+    // send the Alternator information as if it was a 3rd battery, becuase there is no other way.
+    SetN2kDCBatStatus(N2kMsg,2, voltages[ALTERNATOR_VOLTAGE], N2kDoubleNA, N2kDoubleNA, 2);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
+  }
+}
 
 

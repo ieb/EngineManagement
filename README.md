@@ -2,49 +2,60 @@
 
 
 
-In July 2021 my boat was hit by lightning. The MDI unit that manages the Engine, a Volvo Penta D2-40F failed badly leaving the starter motor engaged and nearly causing an engine fire.
+In July 2021 my boat was hit by lightning. The Volvo Penta D2-40 MDI unit that manages the Engine, a Volvo Penta D2-40F failed badly leaving the starter motor engaged and nearly causing an engine fire.
 
-To get back to my home port I rewired the engine with relays and switches, housed in a nunch box, which works perfectly. This project takes that further, replacing the standard MDI unit with a unit that performs the same functions but is
-designed, so that when it fails, it has more chance of failing safely and not turning the starter motor, glow plugs, and everything else on. I never want to try and stop an engine fire devloping because of MOSFET shorting again. The design is based on what electronics survived the strike, what electronics failed safely and what electronics failed unsafely. There were some common patterns. Lighning is unpredictable. Anything silicon based will probably fail. Diodes, MOSFETS, TVS's and even capacitors fail sorted. Fuses blow, but not after transporting the surge. Inductors, coils, motors without capacitors survived. Surge proctection works, but only when it self distructs and is backed up by a fuse to prevent follow on damage.
+# Main control board
 
-The plan was to build a PCB which would use the existing Vplvo Penta buttons and Tacho. However the Tacho was found to be damaged internally with the CanH and CanL at supply and GND voltages. The rest of the Tacho seemed ok, however its internal protection to surges (capacitors to ground, line inductor) didnt help protect it. With 1 large custom chip controlling CanH and CanL its not repairable, and since these cost 500 GBP to replace I have reverted to planB, and simple switch and relay based approach. No J1939 as this isnt necessary and very simple analogue oil, charge and temperature alarms.
+(see pcb/EngineManagementSimpleWithRelays.sch )
 
-I might write a NMEA2000 interface later, but thats probably going to be in a different project using a Mega with enough ram to run the NMEA2000 code.
+This project is based on the standard wiring for the core engine which is a Perkins 100. In that form the engine is controlled by switches, relays and a few flyback diodes. The only part of the original engine control that survived the strike was the Volvo Penta buttons, so those are used by a control board with pnp transistors driving relays triggered by the original buttons pulling the base of the pnp to ground. PushOn/PushOff is provided by a latching relay unit based on a LED control chip that draws a few uA when off. The control circuit draws 0.5A max and is protected by a 5A fuse and 600W TVS which will blow the fuse in the event of a voltage surge.
 
-Information may help someone who has a working VP Taco.
+The main relays for Start, Stop, Glow and aux are all standard iso 40A automotive relays, each curcuit fused with a suitable fuse. 
+
+There are basic alarms for oil pressure, charge and temperature with the temperature alarm using a differntial op amp with high gain adjusted to turn on a pnp at a set temperature. These all drive a buzzer with LEDs to indicate the alarm. 
+
+A standard Thachometer sensing from the alternator W+ provides rev and engine hours. These are almost disposable being 30 GBP on eBay from many sources, all 85mm same as the Volvo Penta Tachometer.
+
+# NMEA2000 Interface
+
+The standard MDI talks J1939 which is the Diesel engne CAN standard protocol. Normally this communicates with other Volvo Penta instruments, but in my case this was only the Tachometer. The J1939 Volvo Penta Tachomter did not survive the strike. The CAN bus interface was destroyed, even though there was an attempt to protect if from surges. At over 500 GBP to replace, I decided to stick with the non J1939 tachometer from eBay. For details on how to drive J1939 see the main_deprecated.cpp file. Volvo Penta service technicians probably query the MDI for fault codes, but for owners there is limited benefit where the only unit is a tachometer or basic instruments.
+
+Once I discovered the VP Tachometer was not repairable, a seperate mechanical diesel to NMEA2000 board was designed and built arround an Arduino Pro Mini (Atmel 328p MCU), MCP2515 CAN controller board and some passive components. There is just enough space on 328p to hold the code and run the controller and the data collected and emitted can be displayed on any NMEA2000 instrument (eg Raymarine e7 MFD).
+
+Component cost of the boards is probably less than 30 GBP, hence spares boards can be carried and in the worst case the engine can be controlled manually.
+
+Replacing the blown VP parts with OEM parts would have been 1500 GBP with a firther 1500 GBP requred for the spare set, safe in the knowledge that a EM pulse from a near strike would result in precisely the same failure and risk of engine fire.
+
 
 
 
 # Sensors
 
-The standard flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle and so can be fed through passive conditioning to procuse a 5V square wave. The pk2pk voltage rises with rpm as does frequency. The The standard oil pressure switch is pulled up to 5V to produce a signal when closed. The standard coolant temperature sensor energised with 8V through a 1K resistor to produce a maximum of 5V to the ADC through a 100K resistor to allow the internal diode protection in the ADC to limit the voltage should the sensor go open circuit.  Fuel level uses a 0-190R sensor. Excitation, AlternatorB+, Engine Battery and Service Battery are all monitored by spare ADC's
+The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle and so can be fed through passive conditioning to procuse a 5V square wave. The pk2pk voltage rises with rpm as does frequency. 
+
+The standard VP oil pressure switch is a simple switch that closes when the oil pressure drops below a threashold.
+
+The standard VP coolant temperature sensor is identical to almost every other coolant sensor, with about 1743R at 0C and 22R at 120C. When about 33R (105C adjustable) is measured the alarm is triggered.
+
+The charge alarm uses the voltage across the resistor supplying current into the alternator excitation coil, alanagous to the charge light in cars long before there were computers.
+
+The NMEA2000 interface board also measures fule level (0R-190R), battery voltage, alternator voltage, and 3 NCT inputs. Inputs are protected with capacitors and 100K resistors to limit current.
+
 
 # Outputs
 
-As mentioned the unit emits J1939 messages over a 5V CAN at 250Kbit for the existing Volvo Penta instruments. A RS485 isolated interface emits NMEA-0183 proprietary messages for onward processign and transmission onto the main NMEA2000 bus. That processing is done outside of the engine context. 
+The relay board provides outputs for starter motor, stop solenoid, glow plugs and aux 12v.
 
-The Pro mini has insufficient digital IO pins to drive the necessary relays so a MCP23008 port extender is used to provide 8 IO ports to drive relays over i2c. 
+The NMEA2000 board provides NMEA2000 messages.
+
 
 # Connections.
 
-The VP harness uses Deutch 6 way and 8 way connectors for all the existing connections except for the Glow plugs and Starter motor solenoid with are m6 studs. So the unit can be a plug replacement the same loom is being used, allowing reverting to a MDI unit should a future owner want to switch back.
+The VP wiring loom has largely been replaced except for the connection to the VP buttons. Most of the original wiring loom was melted by the starter motor, but the rest was strapped tightly to the engine risking shorts when it melted.
 
-# Power on/off
+The control box will be mounted outside the engine bay where temperatures are considerably lower (typically < 30C vs often > 85C next to the engine).
 
-The standard VP on/off button normally turns the engine power on and off. This is acieved by powering the core of the pro-mini drawing 10mA. On button press the pripherals are turned on draing 170 - 200mA enabling other buttons. A dedicated one button bistable flip flop circuit could have been used, but when it failed the behaviour might not be as expected. If the arduino fails, the peripherals are expected to fail off. Most flip flops are biased to one side to be "off" when energised, but given how unpredictable damage is, something that fails off is safer.
 
-# Paranoid ?
-
-Perhaps this is all paranoia, and I had certainly not though it would matter, and assimed the MDI was fail safe, but when it did there was no warning given, and no time to make anything safe. Only very quick actions by the crew disabled the engine and prevented an elctrical fire that would have lost the boat. There are plenty of examples of others who were not so lucky, taking the evidence to the bottom with the boat.
-
-# Feedback
-
-Feedback on any part of the circuit or code is always welcome, especially the circiut. if you see a safer or better way of implementing something please open an issue.
-
-#
-Priority
-6, 
-0x00EE00 = 60928 == claim source address
 
 # Todo/Status
 
@@ -57,6 +68,11 @@ Priority
 [ ] Connect test harness sensors and test.
 [FAIL] Connect VP Taco and test with simulated engine - the VP Taco is blown internally, CanH at 5V, CanL and 0V. Inside three is a large Asic which looks like it directly controls the Can bus. Very unlikely to be 
 able to repair. Google for the numbers turns up no chips, and none of the other chips are CAN related.
+
+[x] Design build and test simple relay controller unit with no MCU
+[x] Design build NMEA2000 controller board
+[ ] bench test NMEA2000 controller board
+[ ] install
 
 
 [ ] Connect relays and test.
