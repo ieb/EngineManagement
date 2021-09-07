@@ -76,7 +76,3 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] Design build NMEA2000 controller board
 [ ] bench test NMEA2000 controller board
 [ ] install
-
-
-[ ] Connect relays and test.
-[ ] Install and test.
