@@ -18,6 +18,9 @@ A standard Thachometer sensing from the alternator W+ provides rev and engine ho
 
 # NMEA2000 Interface
 
+
+(see pcb/EngineManagement.sch)
+
 The standard MDI talks J1939 which is the Diesel engne CAN standard protocol. Normally this communicates with other Volvo Penta instruments, but in my case this was only the Tachometer. The J1939 Volvo Penta Tachomter did not survive the strike. The CAN bus interface was destroyed, even though there was an attempt to protect if from surges. At over 500 GBP to replace, I decided to stick with the non J1939 tachometer from eBay. For details on how to drive J1939 see the main_deprecated.cpp file. Volvo Penta service technicians probably query the MDI for fault codes, but for owners there is limited benefit where the only unit is a tachometer or basic instruments.
 
 Once I discovered the VP Tachometer was not repairable, a seperate mechanical diesel to NMEA2000 board was designed and built arround an Arduino Pro Mini (Atmel 328p MCU), MCP2515 CAN controller board and some passive components. There is just enough space on 328p to hold the code and run the controller and the data collected and emitted can be displayed on any NMEA2000 instrument (eg Raymarine e7 MFD).
