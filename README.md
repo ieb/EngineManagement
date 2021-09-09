@@ -74,5 +74,10 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 
 [x] Design build and test simple relay controller unit with no MCU
 [x] Design build NMEA2000 controller board
+[x] Test NCT readings,  - adjusted to 4.7K top R and rebuilt NTC table from base equations.
+[ ] Test coolant readings
+[ ] Test voltage readings
+[ ] Test RPM with signal generator
+[ ] Test NMEA2000 output
 [ ] bench test NMEA2000 controller board
 [ ] install

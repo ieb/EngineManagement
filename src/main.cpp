@@ -11,7 +11,20 @@
 #include <Arduino.h>
 
 #define USE_MCP_CAN_CLOCK_SET 8
+//#define ENABLE_NMEA2000 1
 //#define DEBUG_NMEA2000 1
+#define DEBUGGING 1
+
+
+#ifdef DEBUGGING
+#define DEBUG(x) Serial.print(x)
+#define DEBUGLN(x) Serial.print(x)
+#else
+#define DEBUG(x) 
+#define DEBUGLN(x) 
+#endif
+
+
 
 //#define N2k_CAN_INT_PIN 21
 #include "NMEA2000_CAN.h"       // This will automatically choose right CAN library and create suitable NMEA2000 object
@@ -36,6 +49,7 @@ extern void readNTC();
 
 
 
+
 void setup() {
   Serial.begin(115200);
   Serial.println(F("Luna monitor start"));
@@ -46,7 +60,10 @@ void setup() {
   digitalWrite(5, LOW);
   initRPM();
   loadEngineHours();
+#ifdef ENABLE_NMEA2000
   setupNMEA2000();
+#endif
+
 }
 
 void loop() {
@@ -55,11 +72,13 @@ void loop() {
   readFuelLevel();
   readVoltages();
   readNTC();
+#ifdef ENABLE_NMEA2000
   sendRapidEngineData();
   sendEngineData();
   sendVoltages();
-  saveEngineHours();
   NMEA2000.ParseMessages();
+#endif
+  saveEngineHours();
 }
 
 union EngineHoursStorage {
@@ -73,6 +92,9 @@ union CRCStorage {
 
 EngineHoursStorage engineHours;
 uint32_t baseEngineHoursPeriods = 0;
+//  engine periods to hours factor 15000/3600000 = 0.004166666667 
+#define ENGINE_HOURS 0.004166666667*engineHours.engineHoursPeriods
+
 void loadEngineHours() {
   uint16_t crc = 0;
   for (int i = 0; i < 4; i++) {    
@@ -88,11 +110,11 @@ void loadEngineHours() {
     }
     baseEngineHoursPeriods = engineHours.engineHoursPeriods;
   }
+  Serial.print(F("Hours: "));
+  Serial.println(ENGINE_HOURS);
 }
 
 #define ENGINE_HOURS_PERIOD_MS 15000
-//  engine periods to hours factor 15000/3600000 = 0.004166666667 
-#define ENGINE_HOURS 0.004166666667*engineHours.engineHoursPeriods
 void saveEngineHours() {
   // the EMS will only be on for a very short time before the engine is started,
   // so assume the engine hours is the runtime of the EMS.
@@ -148,7 +170,10 @@ void readEngineRPM() {
     unsigned long measuredFlywheelPulses = flywheelPulses;
     engineRPM = ((measuredFlywheelPulses-lastFlywheelPulses)*FLYWHEEL_CONVERSION_U)/((now-lastFlywheelReadTime)*FLYWHEEL_CONVERSION_L);
     lastFlywheelReadTime = now;
-    lastFlywheelPulses = measuredFlywheelPulses; 
+    lastFlywheelPulses = measuredFlywheelPulses;
+    Serial.print(F("RPM:"));
+    Serial.println(engineRPM);
+ 
   }
 }
 
@@ -186,36 +211,113 @@ void readFuelLevel() {
       fuelLevelLong = 0;
     }
     fuelLevel = 100-fuelLevelLong;
+    Serial.print(F("Fuel:"));
+    Serial.println(fuelLevel);
   }
+}
+
+/**
+ *  convert a reading from a ntc into a temperature using a curve.
+ */ 
+// tested ok 20210909
+int16_t interpolate(
+      int16_t reading, 
+      int16_t minCurveValue, 
+      int16_t maxCurveValue,
+      int step, 
+      const int16_t *curve, 
+      int curveLength
+      ) {
+  if ( reading > curve[0] ) {
+    DEBUG(minCurveValue);
+    DEBUG(",");
+    return minCurveValue;
+  }
+  for (int i = 1; i < curveLength; i++) {
+    if ( reading > curve[i] ) {
+      DEBUG(i);
+      DEBUG(",");
+      DEBUG(curve[i]);
+      DEBUG(",");
+      DEBUG(curve[i-1]);
+      DEBUG(",");
+      return minCurveValue+((i-1)*step)+((curve[i-1]-reading)*step)/(curve[i-1]-curve[i]);
+    }
+  }
+  DEBUG(minCurveValue);
+  DEBUG("^,");
+  return maxCurveValue;
 }
 
 
 /*
 Thermistor temperature curve from Volvo Penta workshop manual is below.
-supply V is 8V, top R is 1K
-C   K   R2  ADC                 
-C	  K	  R	  ADC Reading	ADC/C	      Resolution in C
-120	393	22	35.26888454		
-110	383	29	46.17453839	1.090565385	0.9169555664
-100	373	38	59.97996146	1.380542308	0.7243530273
-90	363	51	79.50371075	1.952374929	0.5121967022
-80	353	70	107.1850467	2.768133598	0.3612542403
-70	343	97	144.8721969	3.768715017	0.2653424298
-60	333	134	193.6028219	4.873062497	0.205209763
-50	323	197	269.6447786	7.604195674	0.1315063477
-40	313	291	369.3062742	9.966149559	0.1003396542
-30	303	439	499.8315497	13.05252755	0.07661351384
-20	293	677	661.4172928	16.15857431	0.06188664797
-10	283	1076	849.1899807	18.77726879	0.0532558814
-0	273	1743	1041.097776	19.19077954	0.05210835744
-*/
 
-// ADC readings, 120 to 0 in steps of 10C
-const int coolantTable[] = {35, 46, 60, 79, 107, 145, 194, 194, 270, 369, 500, 661, 849, 1041};
-#define COOLANT_TABLE_LENGTH 13
-#define coolantInterpolate(idx,reading) (12-idx)*10+((coolantTable[idx]-reading)*10/(coolantTable[idx]-coolantTable[idx-1]))
+
+Assume a 12V supply, but also measure it and adjust based on the current reading by scaling the reading.
+
+12*700/(700+1000)=4.9, so min temperature that can be read is about 18C for a 12V supply.
+12/(22+1000)=11mA max current through temperature sensor.
+
+Coolant supply voltage uses a 100K/470K divider so 12V == 12*470/(1470) = 3.836V
+ADC reading at 12V = 1024*(12*470/(1470))/5 = 786
+ADC reading at 4v = 1024*(4*470/(1470))/5 = 261
+
+Scaling of coolant reading to 12V = CoolantReading*786/SupplyVoltage.
+
+The reason we are doing this is so that the relay board alarms can operate with no 
+regulated 8V supply from the NMEA200 board, which may fail. If the coolant supply was
+8v regulated it would depend on the MCU supply voltage (and the 8V regulator)
+
+Model	Volvo Penta Standard Coolant Sensor				
+R top	1000				
+Vsupply	12				
+					
+					
+					
+					
+C	R	V	ADC	Current (mA)	Power (mW)
+0	1743	7.625227853	1562	4.374772147	33.35863443
+10	1076	6.219653179	1274	5.780346821	35.95175248
+20	677	4.844364937	992	7.155635063	34.6645076
+30	439	3.660875608	750	8.339124392	30.52849708
+40	291	2.704879938	554	9.295120062	25.14218378
+50	197	1.974937343	404	10.02506266	19.79887061
+60	134	1.417989418	290	10.58201058	15.00517903
+70	97	1.061075661	217	10.93892434	11.60702637
+80	70	0.785046729	161	11.21495327	8.804262381
+90	51	0.582302569	119	11.41769743	6.648554546
+100	38	0.4393063584	90	11.56069364	5.078686224
+110	29	0.3381924198	69	11.66180758	3.943934925
+120	22	0.2583170254	53	11.74168297	3.03307662*/
+
+// ADC readings at 8V supply voltage, 120 to 0 in steps of 10C
+
+
+const int16_t coolantTable[] = {
+  1274,
+  992,
+  750,
+  554,
+  404,
+  290,
+  217,
+  161,
+  119,
+  90,
+  69,
+  53
+  };
+#define COOLANT_TABLE_LENGTH 12
+#define COOLANT_MIN_TEMPERATURE 10
+#define COOLANT_MAX_TEMPERATURE 120
+#define COOLANT_STEP 10
+
 
 #define ADC_COOLANT_SENSOR 1
+#define ADC_COOLANT_SUPPLY 7
+#define COOLANT_SUPPLY_ADC_12V 786
+#define MIN_SUPPLY_VOLTAGE 261
 #define COOLANT_READ_PERIOD 3000
 // C in degrees, not interested in 0.1 of a degree.
 int coolantTemperature;
@@ -226,15 +328,24 @@ void readCoolant() {
   unsigned long now = millis();
   if ( now > lastCoolantReadTime+COOLANT_READ_PERIOD ) {
     lastCoolantReadTime = now;
-    int coolantReading = analogRead(ADC_COOLANT_SENSOR);
-    for (int i = 1; i < COOLANT_TABLE_LENGTH; i++) {
-      if ( coolantReading < coolantTable[i] ) {
-          coolantTemperature = coolantInterpolate(i,coolantReading);
-          return;
-      }
+    // need 32 bits, 1024*1024 = 1M
+    Serial.print(F("Coolant:"));
+    int32_t coolantSupply = (int32_t) analogRead(ADC_COOLANT_SUPPLY);
+    int32_t coolantReading = (int32_t)analogRead(ADC_COOLANT_SENSOR);
+    if ( coolantSupply < MIN_SUPPLY_VOLTAGE) {
+      Serial.println(F("no power"));
+      coolantTemperature = 0;
+      return;
     }
-    // < 0 and off the ADC scale, so cant interpolate. Should never get here.
-    coolantTemperature = 0;
+    Serial.print(coolantSupply);
+    Serial.print(",");
+    Serial.print(coolantReading);
+    Serial.print(",");
+    coolantReading = (coolantReading * coolantSupply)/COOLANT_SUPPLY_ADC_12V;
+    Serial.print(coolantReading);
+    Serial.print(",");
+    coolantTemperature = interpolate(coolantReading,COOLANT_MIN_TEMPERATURE, COOLANT_MAX_TEMPERATURE, COOLANT_STEP, coolantTable, COOLANT_TABLE_LENGTH);
+    Serial.println(coolantTemperature);
   }
 }
 
@@ -258,95 +369,139 @@ void readVoltages() {
   unsigned long now = millis();
   if ( now > lastVotageRead+VOLTAGE_READ_PERIOD ) {
     lastVotageRead = now;
+    Serial.print(F("Voltage"));
     for (int i = 0; i < N_ADCS; i++) {
       voltages[i] = VOLTAGE_SCALE*analogRead(i+START_ADC);
+      Serial.print(",");
+      Serial.print(voltages[i]);
     }
+    Serial.println(" ");
   }
 }
 
-// NTCLG100E2 10K
-int16_t tcurveNTCLG100E2[] = {
-  783, //0C = 1024*32554/(32554+10000)
-  734, //5C = 1024*25339/(25339+10000)
-  681, //10C =  1024*19872/(19872+10000)
-  625, //15C 1024*15698/(15698+10000)
-  568, //20 1024*12488/(12488+10000)
-  512, //25 1024*10000/(10000+10000)
-  456, //30 1024*8059/(8059+10000)
-  404, //35 1024*6535/(6535+10000)
-  356, //40 1024*5330/(5330+10000)
-  311, //45 1024*4372/(4372+10000)
-  271, //50 1024*3605/(3605+10000)
-  235, //55 1024*2989/(2989+10000)
-  204, //60 1024*2490/(2490+10000)
-  203, //65 1024*2476/(2476+10000)
-  203, //70 1024*2476/(2476+10000)
-  203, //75 1024*2476/(2476+10000)
-  203, //80 1024*2476/(2476+10000)
-  203, //85 1024*2476/(2476+10000)
-  203, //90 1024*2476/(2476+10000)
-  203, //95 1024*2476/(2476+10000)
-  203, //100 1024*2476/(2476+10000)
-  203, //105 1024*2476/(2476+10000)
-  203 //110 1024*2476/(2476+10000)
+/*
+https://docs.google.com/spreadsheets/d/1cH6MjYFLKQYQMPswFqU3-U8cdn9rH_bujdkhxfRw2cY/edit#gid=1843834819
+Using https://en.wikipedia.org/wiki/Thermistor
+Model	MT52-10K		Voltage	5		
+B	3950		Top R	4700		
+To	298.15		Max Current	1.063829787	mA	
+Ro	10000		Max allowed power	50		
+rinf	0.01763226979					
+C	K	R	V	ADC	current (mA)	Power (mW)
+-20	253.15	105384.6902	4.786527991	980	0.04541957642	0.2174020739
+-15	258.15	77898.10758	4.71548985	966	0.06053407453	0.285447814
+-10	263.15	58245.71279	4.626662421	948	0.07943352738	0.3675121161
+-5	268.15	44026.04669	4.517711746	925	0.1026145222	0.4635828322
+0	273.15	33620.60372	4.386752877	898	0.1304781114	0.5723752304
+5	278.15	25924.56242	4.232642097	867	0.1632676389	0.6910534817
+10	283.15	20174.57702	4.055260317	831	0.2010084431	0.8151415627
+15	288.15	15837.14766	3.855732043	790	0.2434612674	0.9387214101
+20	293.15	12535.32581	3.636521279	745	0.2901018556	1.054961571
+25	298.15	10000	3.401360544	697	0.3401360544	1.156925355
+30	303.15	8037.140687	3.155001929	646	0.3925527811	1.238504782
+35	308.15	6505.531126	2.902821407	594	0.4462082113	1.295262748
+40	313.15	5301.466859	2.650344661	543	0.4999266678	1.324977975
+45	318.15	4348.13685	2.40278022	492	0.5525999532	1.327776237
+50	323.15	3588.182582	2.164637752	443	0.6032685635	1.305857907
+55	328.15	2978.435896	1.939480863	397	0.6511742844	1.262940063
+60	333.15	2486.164751	1.72982727	354	0.6957814318	1.203581695
+65	338.15	2086.372143	1.537177817	315	0.7367706772	1.132547541
+70	343.15	1759.837009	1.362137316	279	0.7740133371	1.054312449
+75	348.15	1491.682246	1.204585593	247	0.8075349802	0.9727450031
+80	353.15	1270.320235	1.063862728	218	0.8374760152	0.8909595185
+85	358.15	1086.670769	0.9389429714	192	0.8640546869	0.8112980752
+90	363.15	933.5770578	0.828582842	170	0.8875355655	0.7353967412
+95	368.15	805.3667326	0.7314378603	150	0.9082047106	0.6642953102
+100	373.15	697.519773	0.6461484185	132	0.9263514003	0.5985604923
+105	378.15	606.4157635	0.5713986526	117	0.9422556058	0.5384035836
+110	383.15	529.1404013	0.5059535226	104	0.9561801016	0.4837826907
+115	388.15	463.3365226	0.4486793767	92	0.9683660901	0.4344858937
+120	393.15	407.0887766	0.398552673	82	0.9790313462	0.39019556
+125	398.15	358.8338772	0.3546606648	73	0.9883700713	0.3505359866
+130	403.15	317.290402	0.3161969675	65	0.9965538367	0.3151073011
+135	408.15	281.403613	0.2824541383	58	1.003733162	0.2835085854
+140	413.15	250.301877	0.2528147608	52	1.010039413	0.2553528725
+145	418.15	223.2620904	0.2267420323	46	1.015586802	0.2302762154
+*/
+
+const int16_t tcurveNMF5210K[] = {
+    980,
+    966,
+    948,
+    925,
+    898,
+    867,
+    831,
+    790,
+    745,
+    697,
+    646,
+    594,
+    543,
+    492,
+    443,
+    397,
+    354,
+    315,
+    279,
+    247,
+    218,
+    192,
+    170,
+    150,
+    132,
+    117,
+    104,
+    92,
+    82,
+    73,
+    65,
+    58,
+    52,
+    46
 };
-// https://www.gotronic.fr/pj2-mf52type-1554.pdf
-// 5v supply, 10K resistor
-int16_t tcurveNMF5210K[] = {
-  930, //0C = 1024*98960/(98960+10000)
-  736, //5C = 1024*25580/(25580+10000)
-  682, //10C =  1024*20000/(20000+10000)
-  626, //15C 1024*15760/(15760+10000)
-  569, //20 1024*12510/(12510+10000)
-  512, //25 1024*10000/(10000+10000)
-  456, //30 1024*8048/(8048+10000)
-  404, //35 1024*6518/(6518+10000)
-  355, //40 1024*5312/(5312+10000)
-  310, //45 1024*4354/(4354+10000)
-  270, //50 1024*3588/(3588+10000)
-  235, //55 1024*2989/(2989+10000)
-  203, //60 1024*2476/(2476+10000)
-  176, //65 1024*2072/(2072+10000)
-  152, //70 1024*1743 /(1743+10000)
-  131, //75 1024*1473 /(1473 +10000)
-  114, //80 1024*1250/(1250+10000)
-  99, //85 1024*1065/(1065+10000)
-  85, //90 1024*911/(911+10000)
-  74, //95 1024*782.4/(782.4+10000)
-  65, //100 1024*674.4 /(674.4 +10000)
-  56, //105 1024*583.6/(583.6+10000)
-  49 //110 1024*506.6/(506.6+10000)
-};
-
-#define tcurve tcurveNMF5210K
+// in 0.1C steps.
+#define NMF5210K_MIN -200
+#define NMF5210K_MAX 1450
+#define NMF5210K_STEP 50
+#define NMF5210K_LENGTH 33
+// ADC value that indicates a NTC is not connected.
+#define DISCONNECTED_NTC 1000
 
 
-int16_t ntcTemperature(int16_t reading) {
-  if ( reading > tcurve[0] ) {
-    return 0;
-  }
-  for (int i = 1; i < 23; i++) {
-    if ( reading > tcurve[i] ) {
-      return (i*50)+((tcurve[i-1]-reading)*50)/(tcurve[i-1]-tcurve[i]);
-    }
-  }
-  return 1150;
-}
+
+
 
 
 #define START_NTC 2
 #define N_NTC 3
 #define NTC_READ_PERIOD 10000
-// Cx10
-uint16_t temperature[3];
+// degrees Cx10
+int16_t temperature[3];
+// tested ok 20210909
 void readNTC() {
   static unsigned long lastNTCRead = 0;
   // probably need a long to do this calc
   unsigned long now = millis();
   if ( now > lastNTCRead+NTC_READ_PERIOD ) {
     lastNTCRead = now;
+    DEBUGLN(F("Temp"));
     for (int i = 0; i < N_NTC; i++) {
-      temperature[i] = ntcTemperature(analogRead(i+START_NTC));
+      DEBUG(i);
+      DEBUG(",");
+      int ntcReading = analogRead(i+START_NTC);
+      if ( ntcReading > DISCONNECTED_NTC ) {
+        DEBUGLN("disconnected");
+        temperature[i] = 0;
+      } else {
+        DEBUG(ntcReading);
+        DEBUG(",");
+        DEBUG(5.0*ntcReading/1024.0);
+        DEBUG(",");
+        temperature[i] = interpolate(ntcReading, NMF5210K_MIN, NMF5210K_MAX, NMF5210K_STEP, tcurveNMF5210K, NMF5210K_LENGTH);
+        DEBUGLN(temperature[i]);
+
+      }
     }
   }
 }

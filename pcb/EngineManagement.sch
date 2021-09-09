@@ -371,7 +371,7 @@ Monitoring
 Text Notes 6300 7000 0    60   ~ 0
 Fuel Sensor\n0R == Empty\n190R ==  Full\nSupply 8V Use 1K, Full 1.2V empty 0v\nCurrent  max 8mA, 64mW\n
 Text Notes 8000 3600 0    60   ~ 0
-Coolant Sensor\n120C == 22R\n0C = 1743R\n120C == 8*22/(1000+22)=0.17V\n80C = 8*70/1000+70)=0.52V \n50C = 8*197/1000+70)=1.3V\n8mA\n\n\n
+Coolant Sensor\nWith 8V supply R23 at 1K\n120C == 22R\n0C = 1743R\n120C == 8*22/(1000+22)=0.17V\n80C = 8*70/1000+70)=0.52V \n50C = 8*197/1000+70)=1.3V\n8mA\n\n\n
 $Comp
 L MCP2515Shield U5
 U 1 1 6106FED1
@@ -860,10 +860,10 @@ Wire Wire Line
 Text GLabel 10950 5550 2    60   Input ~ 0
 NTC3
 $Comp
-L GND #PWR010
+L GND #PWR09
 U 1 1 612B95DA
 P 5200 6700
-F 0 "#PWR010" H 5200 6700 30  0001 C CNN
+F 0 "#PWR09" H 5200 6700 30  0001 C CNN
 F 1 "GND" H 5200 6630 30  0001 C CNN
 F 2 "" H 5200 6700 60  0001 C CNN
 F 3 "" H 5200 6700 60  0001 C CNN
@@ -921,10 +921,10 @@ NTC2
 Text GLabel 13250 4600 0    60   Output ~ 0
 NTC3
 $Comp
-L GND #PWR011
+L GND #PWR010
 U 1 1 612BBFFF
 P 13150 5600
-F 0 "#PWR011" H 13150 5600 30  0001 C CNN
+F 0 "#PWR010" H 13150 5600 30  0001 C CNN
 F 1 "GND" H 13150 5530 30  0001 C CNN
 F 2 "" H 13150 5600 60  0001 C CNN
 F 3 "" H 13150 5600 60  0001 C CNN
@@ -980,4 +980,6 @@ Text GLabel 3400 7250 0    60   Input ~ 0
 5V150mA
 Text GLabel 12600 5700 0    60   Input ~ 0
 8V
+Text Notes 9800 3600 0    60   ~ 0
+Coolant Sensor\nWith 12V supply R23 fitted externally.\n120C == 22R\n0C = 1743R\n120C == 12*22/(1000+22)=0.25V\n80C = 12*70/1000+70)=0.78V \n50C = 12*197/(1000+197)=1.97\n20C = 12*677/(1000+677)=4.8\n11mA\n\n\n
 $EndSCHEMATC

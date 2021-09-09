@@ -371,7 +371,7 @@ Monitoring
 Text Notes 6300 7000 0    60   ~ 0
 Fuel Sensor\n0R == Empty\n190R ==  Full\nSupply 8V Use 1K, Full 1.2V empty 0v\nCurrent  max 8mA, 64mW\n
 Text Notes 8000 3600 0    60   ~ 0
-Coolant Sensor\n120C == 22R\n0C = 1743R\n120C == 8*22/(1000+22)=0.17V\n80C = 8*70/1000+70)=0.52V \n50C = 8*197/1000+70)=1.3V\n8mA\n\n\n
+Coolant Sensor\nWith 8V supply R23 at 1K\n120C == 22R\n0C = 1743R\n120C == 8*22/(1000+22)=0.17V\n80C = 8*70/1000+70)=0.52V \n50C = 8*197/1000+70)=1.3V\n8mA\n\n\n
 $Comp
 L MCP2515Shield U5
 U 1 1 6106FED1
@@ -739,7 +739,7 @@ L R R8
 U 1 1 612B45A5
 P 8950 4300
 F 0 "R8" V 9030 4300 40  0000 C CNN
-F 1 "22K" V 8957 4301 40  0000 C CNN
+F 1 "4.7K" V 8957 4301 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 8880 4300 30  0001 C CNN
 F 3 "" H 8950 4300 30  0000 C CNN
 	1    8950 4300
@@ -750,7 +750,7 @@ L R R10
 U 1 1 612B463F
 P 9200 4300
 F 0 "R10" V 9280 4300 40  0000 C CNN
-F 1 "22K" V 9207 4301 40  0000 C CNN
+F 1 "4.7K" V 9207 4301 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 9130 4300 30  0001 C CNN
 F 3 "" H 9200 4300 30  0000 C CNN
 	1    9200 4300
@@ -761,7 +761,7 @@ L R R11
 U 1 1 612B46DE
 P 9450 4300
 F 0 "R11" V 9530 4300 40  0000 C CNN
-F 1 "22K" V 9457 4301 40  0000 C CNN
+F 1 "4.7K" V 9457 4301 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 9380 4300 30  0001 C CNN
 F 3 "" H 9450 4300 30  0000 C CNN
 	1    9450 4300
@@ -980,4 +980,6 @@ Text GLabel 3400 7250 0    60   Input ~ 0
 5V150mA
 Text GLabel 12600 5700 0    60   Input ~ 0
 8V
+Text Notes 9800 3600 0    60   ~ 0
+Coolant Sensor\nWith 12V supply R23 fitted externally.\n120C == 22R\n0C = 1743R\n120C == 12*22/(1000+22)=0.25V\n80C = 12*70/1000+70)=0.78V \n50C = 12*197/(1000+197)=1.97\n20C = 12*677/(1000+677)=4.8\n11mA\n\n\n
 $EndSCHEMATC
