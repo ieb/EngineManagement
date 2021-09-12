@@ -527,17 +527,6 @@ Text GLabel 3800 4250 0    60   Input ~ 0
 5V150mA
 Text Notes 1200 4550 0    60   ~ 0
 Signal at idle is 32v pkp, 415Hz, and rises \nfrom there as the engine speed picks up.\n\nAt idle the power disipated in the diodes is uW. \nAt 3KHz, 150V pkp currents in diodes a 1mA or less\nAt 415Hz 32v voltage across caps is < 20v\n
-$Comp
-L R R5
-U 1 1 61121604
-P 4850 4450
-F 0 "R5" V 4930 4450 40  0000 C CNN
-F 1 "10K" V 4857 4451 40  0000 C CNN
-F 2 "Resistors_SMD:R_0805_HandSoldering" V 4780 4450 30  0001 C CNN
-F 3 "" H 4850 4450 30  0000 C CNN
-	1    4850 4450
-	-1   0    0    1   
-$EndComp
 NoConn ~ 3200 7600
 NoConn ~ 7050 4550
 Text GLabel 8150 3900 0    60   Input ~ 0
@@ -588,18 +577,28 @@ Wire Wire Line
 Wire Wire Line
 	7050 4950 7450 4950
 Wire Wire Line
-	8450 4550 8450 6200
+	8450 4550 8450 5050
 Wire Wire Line
-	7950 5050 11050 5050
+	8450 5050 8450 6200
+Wire Wire Line
+	7950 5050 8450 5050
+Wire Wire Line
+	8450 5050 11050 5050
 Connection ~ 8450 5050
 Wire Wire Line
-	8150 3900 8700 3900
+	8150 3900 8450 3900
 Wire Wire Line
-	8950 3900 9450 3900
+	8450 3900 8700 3900
+Wire Wire Line
+	8950 3900 9200 3900
+Wire Wire Line
+	9200 3900 9450 3900
 Wire Wire Line
 	8450 4050 8450 3900
 Wire Wire Line
-	8450 6600 8450 6850
+	8450 6600 8450 6700
+Wire Wire Line
+	8450 6700 8450 6850
 Connection ~ 8450 6700
 Wire Wire Line
 	7450 5050 7050 5050
@@ -616,25 +615,49 @@ Wire Wire Line
 Wire Wire Line
 	7550 4350 7050 4350
 Wire Wire Line
-	4600 1150 5650 1150
+	4600 1150 4850 1150
+Wire Wire Line
+	4850 1150 5150 1150
+Wire Wire Line
+	5150 1150 5350 1150
+Wire Wire Line
+	5350 1150 5650 1150
 Wire Wire Line
 	5350 1400 5350 1150
 Connection ~ 5350 1150
 Wire Wire Line
-	5150 1850 6750 1850
+	5150 1850 5350 1850
+Wire Wire Line
+	5350 1850 6050 1850
+Wire Wire Line
+	6050 1850 6750 1850
 Wire Wire Line
 	6750 1850 6750 1800
 Wire Wire Line
 	5350 1850 5350 1800
 Wire Wire Line
-	6050 1450 6050 2050
+	6050 1450 6050 1850
+Wire Wire Line
+	6050 1850 6050 2050
 Connection ~ 6050 1850
 Wire Wire Line
-	6450 1150 6900 1150
+	6450 1150 6750 1150
+Wire Wire Line
+	6750 1150 6900 1150
 Wire Wire Line
 	6750 1150 6750 1400
 Wire Wire Line
-	8450 6700 9900 6700
+	8450 6700 8700 6700
+Wire Wire Line
+	8700 6700 8950 6700
+Wire Wire Line
+	8950 6700 9200 6700
+Wire Wire Line
+	9200 6700 9450 6700
+Wire Wire Line
+	9450 6700 9700 6700
+Wire Wire Line
+	9700 6700 9900 6700
 Wire Notes Line
 	800  6000 900  6000
 Wire Wire Line
@@ -660,16 +683,22 @@ Wire Wire Line
 	5150 1750 5150 1850
 Connection ~ 5350 1850
 Wire Wire Line
-	4850 4800 3950 4800
+	4850 4800 4400 4800
 Wire Wire Line
-	4400 4600 4400 4850
+	4400 4800 3950 4800
+Wire Wire Line
+	4400 4600 4400 4800
+Wire Wire Line
+	4400 4800 4400 4850
 Connection ~ 4400 4800
 Wire Wire Line
 	4400 5250 4400 5300
 Wire Wire Line
 	4400 5300 4150 5300
 Wire Wire Line
-	4150 5100 4150 5350
+	4150 5100 4150 5300
+Wire Wire Line
+	4150 5300 4150 5350
 Wire Wire Line
 	4150 5100 3950 5100
 Connection ~ 4150 5300
@@ -682,18 +711,13 @@ Wire Wire Line
 Wire Wire Line
 	2900 5100 2700 5100
 Wire Wire Line
-	4850 4700 4850 4800
+	4850 4750 4850 4800
 Wire Wire Line
 	4400 4150 4400 4200
-Wire Wire Line
-	3900 4150 4850 4150
 Wire Wire Line
 	3900 4150 3900 4250
 Wire Wire Line
 	3900 4250 3800 4250
-Wire Wire Line
-	4850 4150 4850 4200
-Connection ~ 4400 4150
 Wire Wire Line
 	2550 7900 3200 7900
 Wire Wire Line
@@ -701,11 +725,14 @@ Wire Wire Line
 Wire Wire Line
 	2550 7700 3200 7700
 Connection ~ 8450 3900
-Connection ~ 4850 4750
 Wire Wire Line
 	3400 7250 3800 7250
 Wire Wire Line
-	7050 5650 10050 5650
+	7050 5650 9700 5650
+Wire Wire Line
+	9700 5650 9900 5650
+Wire Wire Line
+	9900 5650 10050 5650
 Wire Wire Line
 	7050 5550 7400 5550
 Wire Wire Line
@@ -739,7 +766,7 @@ L R R8
 U 1 1 612B45A5
 P 8950 4300
 F 0 "R8" V 9030 4300 40  0000 C CNN
-F 1 "22K" V 8957 4301 40  0000 C CNN
+F 1 "4.7K" V 8957 4301 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 8880 4300 30  0001 C CNN
 F 3 "" H 8950 4300 30  0000 C CNN
 	1    8950 4300
@@ -750,7 +777,7 @@ L R R10
 U 1 1 612B463F
 P 9200 4300
 F 0 "R10" V 9280 4300 40  0000 C CNN
-F 1 "22K" V 9207 4301 40  0000 C CNN
+F 1 "4.7K" V 9207 4301 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 9130 4300 30  0001 C CNN
 F 3 "" H 9200 4300 30  0000 C CNN
 	1    9200 4300
@@ -761,7 +788,7 @@ L R R11
 U 1 1 612B46DE
 P 9450 4300
 F 0 "R11" V 9530 4300 40  0000 C CNN
-F 1 "22K" V 9457 4301 40  0000 C CNN
+F 1 "4.7K" V 9457 4301 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 9380 4300 30  0001 C CNN
 F 3 "" H 9450 4300 30  0000 C CNN
 	1    9450 4300
@@ -771,11 +798,17 @@ Wire Wire Line
 	8700 3900 8700 4050
 Connection ~ 8700 3900
 Wire Wire Line
-	8700 4550 8700 6200
+	8700 4550 8700 4950
 Wire Wire Line
-	8950 4550 8950 6200
+	8700 4950 8700 6200
 Wire Wire Line
-	9200 4550 9200 6200
+	8950 4550 8950 4850
+Wire Wire Line
+	8950 4850 8950 6200
+Wire Wire Line
+	9200 4550 9200 4750
+Wire Wire Line
+	9200 4750 9200 6200
 Wire Wire Line
 	8700 6700 8700 6600
 Wire Wire Line
@@ -788,9 +821,13 @@ Wire Wire Line
 	9450 6700 9450 6600
 Connection ~ 9200 6700
 Wire Wire Line
-	9450 4550 9450 6200
+	9450 4550 9450 5550
 Wire Wire Line
-	8950 3800 8950 4050
+	9450 5550 9450 6200
+Wire Wire Line
+	8950 3800 8950 3900
+Wire Wire Line
+	8950 3900 8950 4050
 Wire Wire Line
 	9200 3900 9200 4050
 Connection ~ 8950 3900
@@ -798,16 +835,24 @@ Wire Wire Line
 	9450 3900 9450 4050
 Connection ~ 9200 3900
 Wire Wire Line
-	7950 4950 11050 4950
+	7950 4950 8700 4950
+Wire Wire Line
+	8700 4950 11050 4950
 Connection ~ 8700 4950
 Wire Wire Line
-	7950 4850 11050 4850
+	7950 4850 8950 4850
+Wire Wire Line
+	8950 4850 11050 4850
 Connection ~ 8950 4850
 Wire Wire Line
-	7950 4750 11050 4750
+	7950 4750 9200 4750
+Wire Wire Line
+	9200 4750 11050 4750
 Connection ~ 9200 4750
 Wire Wire Line
-	7900 5550 10950 5550
+	7900 5550 9450 5550
+Wire Wire Line
+	9450 5550 10950 5550
 Connection ~ 9450 5550
 Wire Wire Line
 	9700 6700 9700 6600
@@ -833,7 +878,11 @@ F 3 "" H 5000 6250 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	4400 5550 5550 5550
+	4400 5550 5000 5550
+Wire Wire Line
+	5000 5550 5200 5550
+Wire Wire Line
+	5200 5550 5550 5550
 $Comp
 L R R1
 U 1 1 612B7D6A
@@ -846,7 +895,11 @@ F 3 "" H 4150 5650 30  0000 C CNN
 	0    1    1    0   
 $EndComp
 Wire Wire Line
-	4400 5650 5550 5650
+	4400 5650 4550 5650
+Wire Wire Line
+	4550 5650 4750 5650
+Wire Wire Line
+	4750 5650 5550 5650
 Text GLabel 10950 5650 2    60   Input ~ 0
 AlternatorB+
 Wire Wire Line
@@ -871,9 +924,15 @@ F 3 "" H 5200 6700 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	5200 6450 5200 6700
+	5200 6450 5200 6600
 Wire Wire Line
-	4550 6600 5200 6600
+	5200 6600 5200 6700
+Wire Wire Line
+	4550 6600 4750 6600
+Wire Wire Line
+	4750 6600 5000 6600
+Wire Wire Line
+	5000 6600 5200 6600
 Wire Wire Line
 	4550 6600 4550 6450
 Connection ~ 5200 6600
@@ -982,4 +1041,6 @@ Text GLabel 12600 5700 0    60   Input ~ 0
 8V
 Text Notes 9800 3600 0    60   ~ 0
 Coolant Sensor\nWith 12V supply R23 fitted externally.\n120C == 22R\n0C = 1743R\n120C == 12*22/(1000+22)=0.25V\n80C = 12*70/1000+70)=0.78V \n50C = 12*197/(1000+197)=1.97\n20C = 12*677/(1000+677)=4.8\n11mA\n\n\n
+Wire Wire Line
+	3900 4150 4400 4150
 $EndSCHEMATC
