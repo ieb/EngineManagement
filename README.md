@@ -34,7 +34,7 @@ Replacing the blown VP parts with OEM parts would have been 1500 GBP with a firt
 
 # Sensors
 
-The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle and so can be fed through passive conditioning to procuse a 5V square wave. The pk2pk voltage rises with rpm as does frequency. 
+The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle and so can be fed through passive conditioning to procuse a 5V square wave. The pk2pk voltage rises with rpm as does frequency. Simulations say the very simple input curcuit will work with capacitors to DC isolate and 47K resistors to limit current into clamping diodes. Testing with a 12v signal to 2KHz (8KRPM) works. Will need to test for real. If this fails, the alternator W+ signal will have to be measured over a few seconds (850 RPM == 14Hz, may need to time between pulses.)
 
 The standard VP oil pressure switch is a simple switch that closes when the oil pressure drops below a threashold.
 
@@ -75,9 +75,11 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] Design build and test simple relay controller unit with no MCU
 [x] Design build NMEA2000 controller board
 [x] Test NCT readings,  - adjusted to 4.7K top R and rebuilt NTC table from base equations.
-[ ] Test coolant readings
-[ ] Test voltage readings
-[ ] Test RPM with signal generator
-[ ] Test NMEA2000 output
-[ ] bench test NMEA2000 controller board
+[x] Test coolant readings - tested with fake NTC sensor wiring, need full test on real sensor
+[x] Test fuel level readings
+[x] Test voltage readings
+[x] Test coolant with variable voltage.
+[x] Test RPM with signal generator
+[x] Test NMEA2000 output
 [ ] install
+[ ] Test output on MFD

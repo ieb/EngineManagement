@@ -11,23 +11,26 @@
 #include <Arduino.h>
 
 #define USE_MCP_CAN_CLOCK_SET 8
-//#define ENABLE_NMEA2000 1
-//#define DEBUG_NMEA2000 1
-#define DEBUGGING 1
+#define ENABLE_NMEA2000 1
+// no chips
+//#define DEBUG_NMEA2000 1 
+// with chips forwarding to serial
+//#define INFO_NMEA2000 1
+//#define DEBUGGING 1
 
 
 #ifdef DEBUGGING
 #define DEBUG(x) Serial.print(x)
-#define DEBUGLN(x) Serial.print(x)
+#define DEBUGLN(x) Serial.println(x)
 #else
 #define DEBUG(x) 
 #define DEBUGLN(x) 
 #endif
 
 
-
-//#define N2k_CAN_INT_PIN 21
-#include "NMEA2000_CAN.h"       // This will automatically choose right CAN library and create suitable NMEA2000 object
+// define the CS pin as the libraries assume otherwise.
+#define N2k_SPI_CS_PIN 10
+#include "NMEA2000_CAN.h"      
 #include "N2kMessages.h"
 #include <util/crc16.h>
 #include <EEPROM.h>
@@ -63,6 +66,7 @@ void setup() {
 #ifdef ENABLE_NMEA2000
   setupNMEA2000();
 #endif
+  Serial.println(F("Running..."));
 
 }
 
@@ -148,43 +152,52 @@ void flywheelPuseHandler() {
 void initRPM() {
   pinMode(PINS_FLYWHEEL, INPUT);
   attachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL), flywheelPuseHandler, RISING);
+  DEBUG(F("ISR enabled"));
+
 }
 
-int engineRPM = 0;
-#define FLYWHEEL_READ_PERIOD 500
+double engineRPM = 0;
+#define FLYWHEEL_READ_PERIOD 2000
 // pulses  Perms -> RPM conversion.
-// 415Hz at idle below needs adjusting.
-// reading every 500ms, RPM at 900 with say 50 notche, 15*50 Hz, 750 Hz
-// pps == pulses*1000/timeInMs
-// rps = pps/teeth
-// rpm = rps/60
-// 1000/(teeth*60)
-// 20 teeth means 1000/(20*60)
-#define FLYWHEEL_CONVERSION_U 1000
-#define FLYWHEEL_CONVERSION_L 1200 //20*60, adjust once we know the number of pulses per revolution.
+// 415Hz at idle below needs adjusting.//
+// 415Hz ==  207 pulses == 850 rpm
+//
+// pulses*850*1000/(duration)*415
+#define FLYWHEEL_CONVERSION_U 850000 // 
+#define FLYWHEEL_CONVERSION_L 415 //
+#define RPM_FACTOR 2048.1927711 // 850000/415
 void readEngineRPM() {
   static unsigned long lastFlywheelReadTime = 0;
   static unsigned long lastFlywheelPulses = 0;
   unsigned long now = millis();
   if ( now > lastFlywheelReadTime+FLYWHEEL_READ_PERIOD ) {
+    noInterrupts();
     unsigned long measuredFlywheelPulses = flywheelPulses;
-    engineRPM = ((measuredFlywheelPulses-lastFlywheelPulses)*FLYWHEEL_CONVERSION_U)/((now-lastFlywheelReadTime)*FLYWHEEL_CONVERSION_L);
+    interrupts();
+    DEBUG(F("RPM:"));
+    DEBUG(measuredFlywheelPulses);
+    DEBUG(",");
+    DEBUG((measuredFlywheelPulses-lastFlywheelPulses));
+    DEBUG(",");
+    DEBUG((now-lastFlywheelReadTime));
+    DEBUG(",");
+    engineRPM = (RPM_FACTOR*(measuredFlywheelPulses-lastFlywheelPulses)/(1.0*(now-lastFlywheelReadTime)));
     lastFlywheelReadTime = now;
     lastFlywheelPulses = measuredFlywheelPulses;
-    Serial.print(F("RPM:"));
-    Serial.println(engineRPM);
+    DEBUGLN(engineRPM);
  
   }
 }
 
 
 #define FUEL_RESISTOR 1000
-#define FUEL_VOLTAGE_ADC 16384 // 8*1024/5 = 1638.4, multply voltages by 10
-#define ADC_FUEL_SENSOR 0
+#define ADC_READING_EMPTY 263 // measured for 190R
+#define ADC_FUEL_SENSOR 1
 #define FUEL_SENSOR_MAX 190
 #define FUEL_READ_PERIOD 10000
 
 // Fuel sensor goes 0-190, 0 being full, 190 being empty.
+// tested ok.
 int fuelLevel = 0;
 void readFuelLevel() {
   static unsigned long lastFuelReadTime = 0;
@@ -192,27 +205,27 @@ void readFuelLevel() {
   if ( now > lastFuelReadTime+FUEL_READ_PERIOD ) {
     lastFuelReadTime = now;
     // probably need a long to do this calc
-    long fuelReading = analogRead(ADC_FUEL_SENSOR);
-    // relationship betweem reading and level can be described mathematically, so use that
-    // (8*R)/(R+100) = V whats R ?
-    // 8*R = V*(R+100)
-    // 8*R = V*R + V*100
-    // 8*R - V*R = V*100
-    // R*(8-V) = V*100
-    // R = V*100/(8-V)
-    // 
-    // We multiply the top line by 10 so the voltage on the divider can be expressed as an long FUEL_VOLTAGE_ADC in 10xADC uints.
-    // We multiple the top line by 100 to give percentage as an long
-    long fuelLevelLong = (fuelReading*10*FUEL_RESISTOR*100)/(FUEL_VOLTAGE_ADC-fuelReading)*FUEL_SENSOR_MAX;
+    DEBUG(F("Fuel:"));
+    int16_t fuelReading = analogRead(ADC_FUEL_SENSOR);
+    DEBUG(fuelReading);
+    DEBUG(",");
+    // Rtop = 1000
+    // Rempty = 190
+    // Rfull = 0
+    // ADCempty = 8*190/(190+1000) =  1.277 = 1024*1.277/5 = 261
+    // Measured at 263
+
+    // ADCfull = 0 = 0v 0
+    fuelReading  = (100*(ADC_READING_EMPTY-fuelReading))/(ADC_READING_EMPTY);
     // the restances may be out of spec so deal with > 100 or < 0.
-    if (fuelLevelLong > 100 ) {
-      fuelLevelLong = 100;
-    } else if ( fuelLevelLong < 0) {
-      fuelLevelLong = 0;
+    if (fuelReading > 100 ) {
+      fuelLevel = 100;
+    } else if ( fuelReading < 0) {
+      fuelLevel = 0;
+    } else {
+      fuelLevel = fuelReading;
     }
-    fuelLevel = 100-fuelLevelLong;
-    Serial.print(F("Fuel:"));
-    Serial.println(fuelLevel);
+    DEBUGLN(fuelLevel);
   }
 }
 
@@ -314,11 +327,11 @@ const int16_t coolantTable[] = {
 #define COOLANT_STEP 10
 
 
-#define ADC_COOLANT_SENSOR 1
+#define ADC_COOLANT_SENSOR 0
 #define ADC_COOLANT_SUPPLY 7
-#define COOLANT_SUPPLY_ADC_12V 786
+#define COOLANT_SUPPLY_ADC_12V 780 // calibrated
 #define MIN_SUPPLY_VOLTAGE 261
-#define COOLANT_READ_PERIOD 3000
+#define COOLANT_READ_PERIOD 2000
 // C in degrees, not interested in 0.1 of a degree.
 int coolantTemperature;
 
@@ -329,23 +342,29 @@ void readCoolant() {
   if ( now > lastCoolantReadTime+COOLANT_READ_PERIOD ) {
     lastCoolantReadTime = now;
     // need 32 bits, 1024*1024 = 1M
-    Serial.print(F("Coolant:"));
+    DEBUG(F("Coolant:"));
     int32_t coolantSupply = (int32_t) analogRead(ADC_COOLANT_SUPPLY);
     int32_t coolantReading = (int32_t)analogRead(ADC_COOLANT_SENSOR);
+
+//    // fake up 12v supply to testing purposes
+//    coolantSupply = COOLANT_SUPPLY_ADC_12V;
+    
+    
+    
     if ( coolantSupply < MIN_SUPPLY_VOLTAGE) {
-      Serial.println(F("no power"));
+      DEBUGLN(F("no power"));
       coolantTemperature = 0;
       return;
     }
-    Serial.print(coolantSupply);
-    Serial.print(",");
-    Serial.print(coolantReading);
-    Serial.print(",");
-    coolantReading = (coolantReading * coolantSupply)/COOLANT_SUPPLY_ADC_12V;
-    Serial.print(coolantReading);
-    Serial.print(",");
+    DEBUG(coolantSupply);
+    DEBUG(",");
+    DEBUG(coolantReading);
+    DEBUG(",");
+    coolantReading = (coolantReading * COOLANT_SUPPLY_ADC_12V)/coolantSupply;
+    DEBUG(coolantReading);
+    DEBUG(",");
     coolantTemperature = interpolate(coolantReading,COOLANT_MIN_TEMPERATURE, COOLANT_MAX_TEMPERATURE, COOLANT_STEP, coolantTable, COOLANT_TABLE_LENGTH);
-    Serial.println(coolantTemperature);
+    DEBUGLN(coolantTemperature);
   }
 }
 
@@ -355,27 +374,27 @@ void readCoolant() {
 double voltages[3];
 // to scale the voltage V =  V*5*(100+47)/(47*1024);
 // to keep the calculation integer split
-#define VOLTAGE_SCALE 0.01527177527 // 5*(100+47)/(47*1024)
+#define VOLTAGE_SCALE 0.01537150931 // 5*(100+47)/(47*1024), calibrated for resistors.
 #define VOLTAGE_READ_PERIOD 5000
 
-#define ENGINE_BATTERY_VOLTAGE 0
+#define ENGINE_BATTERY_VOLTAGE 2
 #define SERVICE_BATTERY_VOLTAGE 1
-#define ALTERNATOR_VOLTAGE 2
+#define ALTERNATOR_VOLTAGE 0
 
-
+// tested ok and calibrated.
 void readVoltages() {
   static unsigned long lastVotageRead = 0;
   // probably need a long to do this calc
   unsigned long now = millis();
   if ( now > lastVotageRead+VOLTAGE_READ_PERIOD ) {
     lastVotageRead = now;
-    Serial.print(F("Voltage"));
+    DEBUG(F("Voltage"));
     for (int i = 0; i < N_ADCS; i++) {
       voltages[i] = VOLTAGE_SCALE*analogRead(i+START_ADC);
-      Serial.print(",");
-      Serial.print(voltages[i]);
+      DEBUG(",");
+      DEBUG(voltages[i]);
     }
-    Serial.println(" ");
+    DEBUGLN(" ");
   }
 }
 
@@ -570,17 +589,23 @@ void setupNMEA2000() {
                                 NMEA2000_DEV_BATTERIES
                                 );
 
-  // debugging with no chips connected.
-#ifdef DEBUG_NMEA2000
+  // debugging with no chips connected
+  //
+
+  // this is a node, we are not that interested in other traffic on the bus.
+  NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly,23);
+#if defined(INFO_NMEA2000)
+  NMEA2000.SetForwardStream(&Serial);
+  NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
+  NMEA2000.EnableForward(true);
+#elif defined(DEBUG_NMEA2000)
   NMEA2000.SetForwardStream(&Serial);
   NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText);
   NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
   NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText); // Uncomment this, so you can test code without CAN bus chips on Arduino Mega
-#endif
-
-  // this is a node, we are not that interested in other traffic on the bus.
-  NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly,23);
+#else
   NMEA2000.EnableForward(false);
+#endif
   const unsigned long engineMessages[] = {  
     127488L, // Rapid engine ideally 0.1s
     127489L, // Dynamic engine 0.5s
@@ -591,10 +616,14 @@ void setupNMEA2000() {
   const unsigned long batteryMessages[] = {  127508L,0L };
   NMEA2000.ExtendTransmitMessages(batteryMessages,NMEA2000_DEV_BATTERIES);
   NMEA2000.SetN2kCANMsgBufSize(2);
-  NMEA2000.SetN2kCANSendFrameBufSize(15);
+  NMEA2000.SetN2kCANSendFrameBufSize(20);
+  Serial.println(F("Opening CAN"));
   NMEA2000.Open();
 }
 
+#ifdef ARDUINO_AVR_PRO
+#define tsts
+#endif
 
 #define RAPID_ENGINE_UPDATE_PERIOD 1000
 

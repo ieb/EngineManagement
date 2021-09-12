@@ -1,0 +1,112 @@
+diff --git a/src/N2kMsg.h b/src/N2kMsg.h
+index 2f92345..d3c6f9a 100644
+--- a/src/N2kMsg.h
++++ b/src/N2kMsg.h
+@@ -26,6 +26,7 @@ Definition for NMEA2000 message class used in my NMEA2000 libraries.
+ 
+ #ifndef _tN2kMsg_H_
+ #define _tN2kMsg_H_
++#include "NMEA2000_CompilerDefns.h"
+ 
+ #include "N2kStream.h"
+ #include "N2kDef.h"
+@@ -104,6 +105,7 @@ public:
+ protected:
+   void ResetData();
+ #if !defined(N2K_NO_ISO_MULTI_PACKET_SUPPORT)
++#error Should not be here.
+ protected:
+   bool TPMessage;
+ public:
+diff --git a/src/NMEA2000.cpp b/src/NMEA2000.cpp
+index 5bb3006..30be707 100644
+--- a/src/NMEA2000.cpp
++++ b/src/NMEA2000.cpp
+@@ -935,8 +935,13 @@ bool tNMEA2000::Open() {
+     }
+ 
+     DeviceReady = (dbMode!=dm_None) || CANOpen();
++    
+     if ( (ForwardStream!=0) && (ForwardType==tNMEA2000::fwdt_Text) ) {
+-      if ( DeviceReady ) { ForwardStream->println(F("CAN device ready")); } else { ForwardStream->println(F("CAN device failed to open")); }
++      if ( DeviceReady ) { 
++        ForwardStream->println(F("CAN device ready")); 
++      } else { 
++        ForwardStream->println(F("CAN device failed to open")); 
++      }
+     }
+ 
+     delay(200);
+@@ -1127,7 +1132,13 @@ bool tNMEA2000::SendMsg(const tN2kMsg &N2kMsg, int DeviceIndex) {
+       if (N2kMsg.DataLen<=8 && !IsFastPacket(N2kMsg) ) { // We can send single frame
+           DbgPrintBuf(N2kMsg.DataLen, N2kMsg.Data,true);
+           result=SendFrame(canId, N2kMsg.DataLen, N2kMsg.Data,false);
+-          if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) { ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN); ForwardStream->println(F(" send failed")); }
++          //if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) { 
++          //  ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN); 
++          //  ForwardStream->println(F(" send failed")); 
++          //}
++          Serial.print(F("PGN ")); 
++          Serial.print(N2kMsg.PGN); 
++          Serial.println(F(" send failed")); 
+           N2kPrintFreeMemory("SendMsg, single frame");
+       } else { // Send it as fast packet in multiple frames
+ #if !defined(N2K_NO_ISO_MULTI_PACKET_SUPPORT)
+@@ -1165,11 +1176,14 @@ bool tNMEA2000::SendMsg(const tN2kMsg &N2kMsg, int DeviceIndex) {
+               // delay(3);
+               DbgPrintBuf(8,temp,true);
+               result=SendFrame(canId, 8, temp, true);
+-              if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) {
+-                ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN);
+-                ForwardStream->print(F(", frame:")); ForwardStream->print(i); ForwardStream->print(F("/")); ForwardStream->print(frames);
+-                ForwardStream->println(F(" send failed"));
+-              }
++              //if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) {
++              //  ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN);
++              //  ForwardStream->print(F(", frame:")); ForwardStream->print(i); ForwardStream->print(F("/")); ForwardStream->print(frames);
++              //  ForwardStream->println(F(" send failed"));
++              //}
++              Serial.print(F("PGN ")); Serial.print(N2kMsg.PGN);
++              Serial.print(F(", frame:")); Serial.print(i); Serial.print(F("/")); Serial.print(frames);
++              Serial.println(F(" send failed"));
+           }
+         }
+       };
+@@ -2100,7 +2114,11 @@ void tNMEA2000::HandleCommandedAddress(uint64_t CommandedName, unsigned char New
+ void tNMEA2000::HandleCommandedAddress(const tN2kMsg &N2kMsg) {
+   N2kMsgDbg(millis()); N2kMsgDbg(" Commanded address:"); N2kMsgDbgln(N2kMsg.Destination);
+ 
+-  if ( N2kMsg.PGN!=65240L || !N2kMsg.IsTPMessage() || N2kMsg.DataLen!=9 ) return;
++  if ( N2kMsg.PGN!=65240L || 
++#ifndef N2K_NO_ISO_MULTI_PACKET_SUPPORT
++  !N2kMsg.IsTPMessage() || 
++#endif
++  N2kMsg.DataLen!=9 ) return;
+ 
+   int iDev=FindSourceDeviceIndex(N2kMsg.Destination);
+   if ( !tNMEA2000::IsBroadcast(N2kMsg.Destination) && iDev==-1) return; // if destination is not for us, we do nothing
+diff --git a/src/NMEA2000_CompilerDefns.h b/src/NMEA2000_CompilerDefns.h
+index 70b1b69..12f9b44 100644
+--- a/src/NMEA2000_CompilerDefns.h
++++ b/src/NMEA2000_CompilerDefns.h
+@@ -42,17 +42,17 @@ path NMEA2000_my and remove it from downloaded NMEA2000 library path.
+ // Normally NMEA 2000 devices communicates by using fastpacket, but this is mandatory
+ // for certified NMEA 2000 devices.
+ // This uses appr. 2 kB of rom. No measured ram effect.
+-// #define N2K_NO_ISO_MULTI_PACKET_SUPPORT 1  // Uncomment this, if you do not need ISO Multi-packet support
++#define N2K_NO_ISO_MULTI_PACKET_SUPPORT 1  // Uncomment this, if you do not need ISO Multi-packet support
+ 
+ // Group functions has been used to control different settings. Mandatory default handlers sets heartbeat interval
+ // and node "name" device instance lower, upper and system instance values.
+ // This uses appr. 4 kB of rom and 100 B ram
+-// #define N2K_NO_GROUP_FUNCTION_SUPPORT 1 // Uncomment this, if you do not need Group Function support
++#define N2K_NO_GROUP_FUNCTION_SUPPORT 1 // Uncomment this, if you do not need Group Function support
+ 
+ // Heartbeat is new way to other devices see that node is alive. Support for this has been slowly
+ // implemented to new firmwares. Since this is new feature I'll expect it takes time before
+ // e.g. MFD:s can rely this. 
+ // This uses appr. 0.5 kB of rom. No measured ram effect.
+-// #define N2K_NO_HEARTBEAT_SUPPORT 1 // Uncomment this, if you do not want device to send heartbeat 
++#define N2K_NO_HEARTBEAT_SUPPORT 1 // Uncomment this, if you do not want device to send heartbeat 
+ 
+ #endif
