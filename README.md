@@ -58,6 +58,31 @@ The VP wiring loom has largely been replaced except for the connection to the VP
 
 The control box will be mounted outside the engine bay where temperatures are considerably lower (typically < 30C vs often > 85C next to the engine).
 
+# Code
+
+Code is all in main.cpp rather than a classes since there is little to it and I needed tight control over memory usage (less risk of hidden bloat). NMEA support uses 
+
+	https://github.com/ttlappalainen/NMEA2000.git
+	https://github.com/ttlappalainen/NMEA2000_mcp.git
+	https://github.com/ttlappalainen/CAN_BUS_Shield.git
+
+however there are some patches required, see src/*.patch. 
+src/CAN_BUS_Shield.patch. The SPI clk was heavilly distorted at 8MHz with a Pro Mini so I dropped the SPI to 1MHz to get a clean clk square wave. 
+
+src/NMEA2000-library.patch The memory savings (see NMEA2000_CompilerDefns.h) which are required to run on a 382p dont complie without this patch. Additionally there I needed feedback on serial of failed packets without enabling all packet output.
+
+Both patches must be applied if pulling fresh dependencies. 
+
+# Memory usage
+
+Building .pio/build/pro16MHzatmega328/firmware.hex
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [==        ]  18.4% (used 377 bytes from 2048 bytes)
+Flash: [========= ]  89.4% (used 27458 bytes from 30720 bytes)
+
+If debugging of the sensors is enabled, then NMEA2000 output may have to be disabled to get the code to fit into FLASH. No problems seen with RAM at the moment, but it hasnt been tested on a live NMEA2000 bus yet.
+
+
 
 
 # Todo/Status
