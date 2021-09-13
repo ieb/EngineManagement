@@ -19,7 +19,7 @@ index 2f92345..d3c6f9a 100644
    bool TPMessage;
  public:
 diff --git a/src/NMEA2000.cpp b/src/NMEA2000.cpp
-index 5bb3006..30be707 100644
+index 5bb3006..ac64d2b 100644
 --- a/src/NMEA2000.cpp
 +++ b/src/NMEA2000.cpp
 @@ -935,8 +935,13 @@ bool tNMEA2000::Open() {
@@ -72,19 +72,60 @@ index 5bb3006..30be707 100644
            }
          }
        };
-@@ -2100,7 +2114,11 @@ void tNMEA2000::HandleCommandedAddress(uint64_t CommandedName, unsigned char New
+@@ -2084,6 +2098,7 @@ void tNMEA2000::HandleISOAddressClaim(const tN2kMsg &N2kMsg) {
+     }
+ }
+ 
++#if !defined(N2K_NO_ISO_MULTI_PACKET_SUPPORT)
+ //*****************************************************************************
+ void tNMEA2000::HandleCommandedAddress(uint64_t CommandedName, unsigned char NewAddress, int iDev) {
+   if ( IsBroadcast(NewAddress) ) return;
+@@ -2100,7 +2115,9 @@ void tNMEA2000::HandleCommandedAddress(uint64_t CommandedName, unsigned char New
  void tNMEA2000::HandleCommandedAddress(const tN2kMsg &N2kMsg) {
    N2kMsgDbg(millis()); N2kMsgDbg(" Commanded address:"); N2kMsgDbgln(N2kMsg.Destination);
  
 -  if ( N2kMsg.PGN!=65240L || !N2kMsg.IsTPMessage() || N2kMsg.DataLen!=9 ) return;
 +  if ( N2kMsg.PGN!=65240L || 
-+#ifndef N2K_NO_ISO_MULTI_PACKET_SUPPORT
 +  !N2kMsg.IsTPMessage() || 
-+#endif
 +  N2kMsg.DataLen!=9 ) return;
  
    int iDev=FindSourceDeviceIndex(N2kMsg.Destination);
    if ( !tNMEA2000::IsBroadcast(N2kMsg.Destination) && iDev==-1) return; // if destination is not for us, we do nothing
+@@ -2116,6 +2133,7 @@ void tNMEA2000::HandleCommandedAddress(const tN2kMsg &N2kMsg) {
+     HandleCommandedAddress(CommandedName,NewAddress,iDev);
+   }
+ }
++#endif
+ 
+ //*****************************************************************************
+ void tNMEA2000::SetN2kSource(unsigned char _iAddr, int _iDev) {
+@@ -2190,9 +2208,11 @@ bool tNMEA2000::HandleReceivedSystemMessage(int MsgIndex) {
+           case 60928L: /*ISO Address Claim*/
+             HandleISOAddressClaim(N2kCANMsgBuf[MsgIndex].N2kMsg);
+             break;
++#if !defined(N2K_NO_ISO_MULTI_PACKET_SUPPORT)
+           case 65240L: /*Commanded Address*/
+             HandleCommandedAddress(N2kCANMsgBuf[MsgIndex].N2kMsg);
+             break;
++#endif
+ #if !defined(N2K_NO_GROUP_FUNCTION_SUPPORT)
+           case 126208L: /*NMEA Request/Command/Acknowledge group function*/
+             HandleGroupFunction(N2kCANMsgBuf[MsgIndex].N2kMsg);
+diff --git a/src/NMEA2000.h b/src/NMEA2000.h
+index a77e8ad..9ebe6c1 100644
+--- a/src/NMEA2000.h
++++ b/src/NMEA2000.h
+@@ -434,8 +434,10 @@ protected:
+     void StartAddressClaim();
+     bool IsAddressClaimStarted(int iDev);
+     void HandleISOAddressClaim(const tN2kMsg &N2kMsg);
++#if !defined(N2K_NO_ISO_MULTI_PACKET_SUPPORT)
+     void HandleCommandedAddress(uint64_t CommandedName, unsigned char NewAddress, int iDev);
+     void HandleCommandedAddress(const tN2kMsg &N2kMsg);
++#endif
+     void GetNextAddress(int DeviceIndex, bool RestartAtEnd=false);
+     bool IsMySource(unsigned char Source);
+     int FindSourceDeviceIndex(unsigned char Source);
 diff --git a/src/NMEA2000_CompilerDefns.h b/src/NMEA2000_CompilerDefns.h
 index 70b1b69..12f9b44 100644
 --- a/src/NMEA2000_CompilerDefns.h
