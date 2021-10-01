@@ -1,0 +1,110 @@
+Source,/Users/ieb/timefields/PlatformIO/Projects/EngineManagement/pcb/EngineManagementSimpleWithMosfets.sch
+Kicad Rev,Eeschema 4.0.6
+Generated Date,Monday, 27 September 2021 'pmt' 12:06:12
+
+Title,Not Set
+Company,Not Set
+Revision,Not Set
+Date Issue,Not Set
+
+Reference,Value,Library,Library Ref
+F1,FUSE 5A,device,FUSE
+D1,SMBJ30CA-TR TSV,device,DIODE
+F2,FUSE 30A,device,FUSE
+D7,5A 600V,device,DIODE
+D10,10A 600V,device,DIODE
+D8,10A 600V,device,DIODE
+D9,1A 40V,device,DIODE
+R7,10R,device,R
+F3,6A Breaker,device,FUSE
+F4,6A breaker,device,FUSE
+F5,6A breaker,device,FUSE
+SW2,Start,device,SW_PUSH
+SW3,Stop,device,SW_PUSH
+SW4,Glow,device,SW_PUSH
+U2,Tachometer,device,Tachometer
+U3,WaterTemp,device,Tachometer
+R11,1K,device,R
+D2,ChargeWarn,device,LED
+D5,OilWarn,device,LED
+R19,1K,device,R
+U1,LM358,linear,LM358
+R2,330R,device,R
+Q5,2N2907,device,PNP
+Q6,2N2907,device,PNP
+R18,2.2K,device,R
+R21,10K,device,R
+R20,2.2K,device,R
+R17,10K,device,R
+R5,10K,device,R
+SP1,Buzzer,device,SPEAKER
+D4,TempWarn,device,LED
+R16,1K,device,R
+R4,10K,device,R
+R12,10M,device,R
+C2,10uF,device,CAPAPOL
+C1,10nF,device,C
+P10,VP ButtonPlug,conn,CONN_6
+P9,VP MultiLinkPlug,conn,CONN_6
+P8,VP EnginePlug,conn,CONN_8
+D3,10A100V,device,DIODE
+Q1,2N2907,device,PNP
+R3,10K,device,R
+R6,2.2K,device,R
+SW1,ON/OFF,device,SW_PUSH
+R22,1K,device,R
+F7,FUSE 15A,device,FUSE
+F6,FUSE 40A,device,FUSE
+D14,OilWarn,device,LED
+R23,1K,device,R
+P1,VPButtons,conn,CONN_5
+P5,12VSwitchedPower,conn,CONN_1
+P3,StarterSolenoidT30,conn,CONN_1
+P4,StopSolenoid,conn,CONN_1
+P2,ToEngine,conn,CONN_6
+RV1,20K,device,POT
+P6,GlowPlugs,conn,CONN_1
+Q3,SI7137,device,MOSFET_P
+Q9,SI7137,device,MOSFET_P
+Q4,SI7137,device,MOSFET_P
+Q7,SI7137,device,MOSFET_P
+D18,5A 600V,device,DIODE
+D13,SMBJ30CA-TR TSV,device,DIODE
+D6,SMBJ30CA-TR TSV,device,DIODE
+D11,SMBJ30CA-TR TSV,device,DIODE
+R26,1K,device,R
+R13,1K,device,R
+R15,100R,device,R
+R24,100R,device,R
+R14,1K,device,R
+Q8,SI7137,device,MOSFET_P
+R10,220R,device,R
+R9,10K,device,R
+R1,100R,device,R
+R8,10K,device,R
+D12,ZENER,device,ZENER
+D17,10V Zeener,device,ZENER
+D15,ZENER,device,ZENER
+D16,ZENER,device,ZENER
+SW5,Neutral,device,SPST
+U5,Max16054,device,Max16054
+U4,NCP1117ST50T3G,regul,NCP1117ST50T3G
+TH1,THERMISTOR,device,THERMISTOR
+Q2,BS170,device,MOS_N
+C3,10uF,device,CAPAPOL
+Q11,BS250P,device,MOSFET_P
+R25,10K,device,R
+R33,220R,device,R
+Q15,BS250P,device,MOSFET_P
+R35,220R,device,R
+R27,2.2K,device,R
+F8,FUSE 40A,device,FUSE
+D19,SMBJ30CA-TR TSV,device,DIODE
+R28,2.2K,device,R
+R31,100R,device,R
+Q13,BS250P,device,MOSFET_P
+R34,220R,device,R
+D22,1N4001,device,DIODE
+D23,1N4001,device,DIODE
+D21,1N4001,device,DIODE
+D20,1N4001,device,DIODE

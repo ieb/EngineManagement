@@ -37,41 +37,6 @@ index 5bb3006..ac64d2b 100644
      }
  
      delay(200);
-@@ -1127,7 +1132,13 @@ bool tNMEA2000::SendMsg(const tN2kMsg &N2kMsg, int DeviceIndex) {
-       if (N2kMsg.DataLen<=8 && !IsFastPacket(N2kMsg) ) { // We can send single frame
-           DbgPrintBuf(N2kMsg.DataLen, N2kMsg.Data,true);
-           result=SendFrame(canId, N2kMsg.DataLen, N2kMsg.Data,false);
--          if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) { ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN); ForwardStream->println(F(" send failed")); }
-+          //if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) { 
-+          //  ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN); 
-+          //  ForwardStream->println(F(" send failed")); 
-+          //}
-+          Serial.print(F("PGN ")); 
-+          Serial.print(N2kMsg.PGN); 
-+          Serial.println(F(" send failed")); 
-           N2kPrintFreeMemory("SendMsg, single frame");
-       } else { // Send it as fast packet in multiple frames
- #if !defined(N2K_NO_ISO_MULTI_PACKET_SUPPORT)
-@@ -1165,11 +1176,14 @@ bool tNMEA2000::SendMsg(const tN2kMsg &N2kMsg, int DeviceIndex) {
-               // delay(3);
-               DbgPrintBuf(8,temp,true);
-               result=SendFrame(canId, 8, temp, true);
--              if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) {
--                ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN);
--                ForwardStream->print(F(", frame:")); ForwardStream->print(i); ForwardStream->print(F("/")); ForwardStream->print(frames);
--                ForwardStream->println(F(" send failed"));
--              }
-+              //if (!result && ForwardStream!=0 && ForwardType==tNMEA2000::fwdt_Text) {
-+              //  ForwardStream->print(F("PGN ")); ForwardStream->print(N2kMsg.PGN);
-+              //  ForwardStream->print(F(", frame:")); ForwardStream->print(i); ForwardStream->print(F("/")); ForwardStream->print(frames);
-+              //  ForwardStream->println(F(" send failed"));
-+              //}
-+              Serial.print(F("PGN ")); Serial.print(N2kMsg.PGN);
-+              Serial.print(F(", frame:")); Serial.print(i); Serial.print(F("/")); Serial.print(frames);
-+              Serial.println(F(" send failed"));
-           }
-         }
-       };
 @@ -2084,6 +2098,7 @@ void tNMEA2000::HandleISOAddressClaim(const tN2kMsg &N2kMsg) {
      }
  }

@@ -16,6 +16,27 @@ There are basic alarms for oil pressure, charge and temperature with the tempera
 
 A standard Thachometer sensing from the alternator W+ provides rev and engine hours. These are almost disposable being 30 GBP on eBay from many sources, all 85mm same as the Volvo Penta Tachometer.
 
+## Mosfet alternative
+
+Although the original MDI failed due to the MOSFETs going short circuit, and in this respect relays may be more robust, it should be possble to protect MOSFETs or at least fail safe.
+
+A 1.5KW TVS (eg SMCJ14A) with a 14.0V revers standoff, 15.6V minimum breakdown will conduct 5A@16V, 10A@18V and 40A@20V, which makes it viable as protection for excessive voltages upto 40A current, aiming to blow a fuse at above those voltages. Each mosfet needs its own TVS + suitably sized fuse or breaker. In the event of a stike or surge the TVS will short and blow the fuse before damage is done even if the MOSFET is shorted. It wont work for currents greater than 40A without exceeding the max Vds voltage of the MOSFET below.
+
+A SI7137DP-T1-GE3 has an on resitance of 0.0016 Ohms and will dispate < 640mW for 20A when fully on. It, unfortunately has a Max Vds of 20V and Vgs of 12v so needs protection, but provided its protected represents a robust solution as a high level switch. 
+
+In the relay board on/off was provided by a eBay relay board which used a LED controler. To keep the number of daughter boards to a minimum and save space this is replaced by a MAX15054 on-off controller driving a N-Channel mosfet which when turned on draws the gate of one of the SI7137's to near zero turning it fully on. The same N-Channel mosfet enables P-Channel mosfets connected to the gates of other SI7137s. When the VP buttons are pressed the gates of these mosfets are dragged down to 0v turning them on, and since the N-Channel mosfet is conducting the gate of the respective SI7137 is also dragged to 0v switching that mosfet on. All P-Channel gates are pulled to +ve, and all N-Channel gates are pulled to 0v. The SI7137 has a max source gate voltage of 12v and so a 10v zener with forward diode ensures tht nevery gets over 11.5v. 
+
+Simulations indicate that the power dissipation in the SI7137 at 20A is 2.5W, so a pair are used for the glow plugs. At 8A for the start and stop solenoids power disipation is closer ot 500mW. Board cooling pads are used, although it migh be necessary to add chip heat sinks.
+
+Since the SI7137 are 1/10th the size of the relays, the switching circuit and NMEA2000 interface controller will all fit onto a single 10cm x 15cm board (which is the size I have in stock).
+
+All of the silicon components were available at Farnell except the SI7137's which were ordered from Mouser, airmailed from California. For some reaon RS in the UK had no stock of any mosfets.
+
+see pcb/EngineManagementWithMosfets.sch which includes a subsheet of the NMEA interface. There are LTSpice simulations in pcb/simulations/ of the mosfet layout confirming transient behaviour, currents and power disapation.
+
+Since its likely that when there is a voltage spike something on the board will blow, assuming this board works, I'll probably make a batch and keep a few spares onborad the boat.
+
+
 # NMEA2000 Interface
 
 
@@ -85,7 +106,7 @@ If debugging of the sensors is enabled, then NMEA2000 output may have to be disa
 
 
 
-# Todo/Status
+# Todo/Status Relay Board
 
 [x] Build prototype PCB and populate.
 [x] Test on/off sequence.
@@ -108,3 +129,21 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] Test NMEA2000 output
 [ ] install
 [ ] Test output on MFD
+
+
+
+# Todo Status Mosfet board
+
+[x] Simulate everything in LTSpice
+[x] Layout PCB
+[ ] Mill prototype
+[ ] Order Silicon
+[ ] Build prototype
+[ ] Test on/off
+[ ] Test other buttons and circuits, under load ideally.
+[ ] Test warning curcuits
+[ ] Test sensors
+[ ] Test NMEA2000 output
+[ ] Install
+[ ] Test running
+[ ] Order boards and build spares.

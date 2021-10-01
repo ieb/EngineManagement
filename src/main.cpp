@@ -17,6 +17,7 @@
 // with chips forwarding to serial
 //#define INFO_NMEA2000 1
 //#define DEBUGGING 1
+#define INFOMSG 1
 
 
 #ifdef DEBUGGING
@@ -25,6 +26,14 @@
 #else
 #define DEBUG(x) 
 #define DEBUGLN(x) 
+#endif
+
+#ifdef INFOMSG
+#define INFO(x) Serial.print(x)
+#define INFOLN(x) Serial.println(x)
+#else
+#define INFO(x) 
+#define INFOLN(x) 
 #endif
 
 
@@ -49,7 +58,8 @@ extern void sendVoltages();
 extern void loadEngineHours();
 extern void saveEngineHours();
 extern void readNTC();
-
+extern void sendTemperatures();
+extern void sendFuel();
 
 
 
@@ -80,6 +90,8 @@ void loop() {
   sendRapidEngineData();
   sendEngineData();
   sendVoltages();
+  sendTemperatures();
+  sendFuel();
   NMEA2000.ParseMessages();
 #endif
   saveEngineHours();
@@ -150,8 +162,8 @@ void flywheelPuseHandler() {
 }
 
 void initRPM() {
-  pinMode(PINS_FLYWHEEL, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL), flywheelPuseHandler, RISING);
+  pinMode(PINS_FLYWHEEL, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL), flywheelPuseHandler, FALLING);
   DEBUG(F("ISR enabled"));
 
 }
@@ -331,7 +343,7 @@ const int16_t coolantTable[] = {
 #define ADC_COOLANT_SUPPLY 7
 #define COOLANT_SUPPLY_ADC_12V 780 // calibrated
 #define MIN_SUPPLY_VOLTAGE 261
-#define COOLANT_READ_PERIOD 2000
+#define COOLANT_READ_PERIOD 1000
 // C in degrees, not interested in 0.1 of a degree.
 int coolantTemperature;
 
@@ -491,10 +503,13 @@ const int16_t tcurveNMF5210K[] = {
 
 
 
+#define EXHAUST_TEMP 0
+#define ALTERNATOR_TEMP 1
+#define ENGINEROOM_TEMP 2
 
 #define START_NTC 2
 #define N_NTC 3
-#define NTC_READ_PERIOD 10000
+#define NTC_READ_PERIOD 2000
 // degrees Cx10
 int16_t temperature[3];
 // tested ok 20210909
@@ -596,13 +611,12 @@ void setupNMEA2000() {
   NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly,23);
 #if defined(INFO_NMEA2000)
   NMEA2000.SetForwardStream(&Serial);
-  NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
   NMEA2000.EnableForward(true);
+  NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
 #elif defined(DEBUG_NMEA2000)
   NMEA2000.SetForwardStream(&Serial);
   NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText);
   NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
-  NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText); // Uncomment this, so you can test code without CAN bus chips on Arduino Mega
 #else
   NMEA2000.EnableForward(false);
 #endif
@@ -625,21 +639,24 @@ void setupNMEA2000() {
 #define tsts
 #endif
 
-#define RAPID_ENGINE_UPDATE_PERIOD 1000
-
+#define RAPID_ENGINE_UPDATE_PERIOD 100
+int diff = 0;
 void sendRapidEngineData() {
   static unsigned long lastRapidEngineUpdate=0;
   unsigned long now = millis();
   if ( now > lastRapidEngineUpdate+RAPID_ENGINE_UPDATE_PERIOD ) {
+    diff = now-lastRapidEngineUpdate;
+    diff = diff - RAPID_ENGINE_UPDATE_PERIOD;
     lastRapidEngineUpdate = now;
     // PGN127488
+
     tN2kMsg N2kMsg;
     SetN2kEngineParamRapid(N2kMsg, 0, engineRPM);
     NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
   }
 }
 
-#define ENGINE_UPDATE_PERIOD 10000
+#define ENGINE_UPDATE_PERIOD 2000
 
 void sendEngineData() {
   static unsigned long lastEngineUpdate=0;
@@ -648,20 +665,18 @@ void sendEngineData() {
     lastEngineUpdate = now;
     // PGN127489
 
+
     tN2kMsg N2kMsg;
     SetN2kEngineDynamicParam(N2kMsg, 0, N2kDoubleNA, N2kDoubleNA, CToKelvin(coolantTemperature), voltages[ALTERNATOR_VOLTAGE],
                       N2kDoubleNA, ENGINE_HOURS, N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kInt8NA,0,0);
     NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
 
-    // always send the fuel level data.
-    SetN2kFluidLevel(N2kMsg,0,N2kft_Fuel,fuelLevel,60);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
   }
 }
 
 
 
-#define VOLTAGE_UPDATE_PERIOD 5000
+#define VOLTAGE_UPDATE_PERIOD 9996
 
 void sendVoltages() {
   static unsigned long lastVoltageUpdate=0;
@@ -672,14 +687,68 @@ void sendVoltages() {
 
 
     tN2kMsg N2kMsg;
-    SetN2kDCBatStatus(N2kMsg,0, voltages[SERVICE_BATTERY_VOLTAGE], N2kDoubleNA, N2kDoubleNA, 0);
+    SetN2kDCBatStatus(N2kMsg,0, voltages[SERVICE_BATTERY_VOLTAGE], N2kDoubleNA, CToKelvin(0.1*temperature[ENGINEROOM_TEMP]), 0);
     NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
-    SetN2kDCBatStatus(N2kMsg,1, voltages[ENGINE_BATTERY_VOLTAGE], N2kDoubleNA, N2kDoubleNA, 1);
+    SetN2kDCBatStatus(N2kMsg,1, voltages[ENGINE_BATTERY_VOLTAGE], N2kDoubleNA, CToKelvin(0.1*temperature[ENGINEROOM_TEMP]), 1);
     NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
     // send the Alternator information as if it was a 3rd battery, becuase there is no other way.
-    SetN2kDCBatStatus(N2kMsg,2, voltages[ALTERNATOR_VOLTAGE], N2kDoubleNA, N2kDoubleNA, 2);
+    SetN2kDCBatStatus(N2kMsg,2, voltages[ALTERNATOR_VOLTAGE], N2kDoubleNA, CToKelvin(0.1*temperature[ALTERNATOR_TEMP]), 2);
     NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
+
   }
 }
 
+#define FUEL_UPDATE_PERIOD 10000
 
+void sendFuel() {
+  static unsigned long lastFuelUpdate=0;
+  unsigned long now = millis();
+  if ( now > lastFuelUpdate+FUEL_UPDATE_PERIOD ) {
+    lastFuelUpdate = now;
+    tN2kMsg N2kMsg;
+    // always send the fuel level data.
+    SetN2kFluidLevel(N2kMsg,0,N2kft_Fuel,fuelLevel,60);
+    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
+  }
+}
+
+#define TEMPERATURE_UPDATE_PERIOD 4850
+
+void sendTemperatures() {
+  static unsigned long lastTempUpdate=0;
+  static byte n =24;
+  unsigned long now = millis();
+  if ( now > lastTempUpdate+TEMPERATURE_UPDATE_PERIOD ) {
+    lastTempUpdate = now;
+    tN2kMsg N2kMsg;
+    n++;
+    if ( n == 25 ) {
+      INFOLN(F("hours,rpm,Et,Av,Sv,Ev,Xt,At,Rt,d"));
+      n = 0;
+    }
+    char comma = ',';
+    INFO(ENGINE_HOURS);
+    INFO(comma);
+    INFO(engineRPM);
+    INFO(comma);
+    INFO(coolantTemperature);
+    INFO(comma);
+    for(int i = 0; i < 3; i++) {
+      INFO(voltages[i]);
+      INFO(comma);
+    }
+    for(int i = 0; i < 3; i++) {
+      INFO(temperature[i]);
+      INFO(comma);
+    }
+    INFOLN(diff);
+
+    // send extended temperatures
+    SetN2kTemperatureExt(N2kMsg, 1, 1, N2kts_ExhaustGasTemperature, CToKelvin(0.1*temperature[EXHAUST_TEMP]));
+    NMEA2000.SendMsg(N2kMsg);
+    SetN2kTemperatureExt(N2kMsg, 2, 2, N2kts_ExhaustGasTemperature, CToKelvin(0.1*temperature[ENGINEROOM_TEMP]));
+    NMEA2000.SendMsg(N2kMsg);
+    SetN2kTemperature(N2kMsg, 3, 3, N2kts_EngineRoomTemperature, CToKelvin(0.1*temperature[ALTERNATOR_TEMP]));
+    NMEA2000.SendMsg(N2kMsg);
+  }
+}
