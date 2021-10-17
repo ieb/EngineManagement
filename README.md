@@ -136,8 +136,11 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] Test coolant with variable voltage.
 [x] Test RPM with signal generator
 [x] Test NMEA2000 output
-[ ] install
-[ ] Test output on MFD
+[x] install
+[x] Test output on MFD, all working except Charge alarm sounds all the time and RPM sensor is unreliable.
+[ ] Fix RPM sensor, using schmitt trigger
+[ ] Fix charge sensor, adjust resistors or disable.
+[ ] Test again.
 
 
 
