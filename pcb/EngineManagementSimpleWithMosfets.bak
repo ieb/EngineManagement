@@ -28,11 +28,12 @@ LIBS:opto
 LIBS:atmel
 LIBS:contrib
 LIBS:valves
+LIBS:EngineManagementSimpleWithMosfets-cache
 EELAYER 25 0
 EELAYER END
 $Descr A3 16535 11693
 encoding utf-8
-Sheet 1 1
+Sheet 1 2
 Title ""
 Date ""
 Rev ""
@@ -55,7 +56,7 @@ F 3 "" H 8300 750 60  0000 C CNN
 $EndComp
 $Comp
 L DIODE D1
-U 1 1 61026462
+U 1 1 61559538
 P 2100 1300
 F 0 "D1" H 2100 1400 40  0000 C CNN
 F 1 "SMBJ30CA-TR TSV" H 2100 1200 40  0000 C CNN
@@ -723,7 +724,7 @@ L R R3
 U 1 1 6124BF7E
 P 2850 7950
 F 0 "R3" H 2930 7950 40  0000 C CNN
-F 1 "10K" V 2857 7951 40  0000 C CNN
+F 1 "2.2K" V 2857 7951 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 2780 7950 30  0001 C CNN
 F 3 "" H 2850 7950 30  0000 C CNN
 	1    2850 7950
@@ -734,7 +735,7 @@ L R R6
 U 1 1 6124C3ED
 P 3300 8250
 F 0 "R6" H 3380 8250 40  0000 C CNN
-F 1 "2.2K" V 3307 8251 40  0000 C CNN
+F 1 "10K" V 3307 8251 40  0000 C CNN
 F 2 "Resistors_SMD:R_0805_HandSoldering" V 3230 8250 30  0001 C CNN
 F 3 "" H 3300 8250 30  0000 C CNN
 	1    3300 8250
@@ -2183,4 +2184,44 @@ $EndComp
 Wire Wire Line
 	5300 850  5300 750 
 Connection ~ 5300 750 
+$Sheet
+S 11300 8500 4150 1250
+U 615569F0
+F0 "EngineManagement" 60
+F1 "EngineManagement.sch" 60
+$EndSheet
+$Comp
+L CONN_1 P11
+U 1 1 6155F876
+P 4500 600
+F 0 "P11" H 4580 600 40  0000 L CNN
+F 1 "Battery+" H 4500 655 30  0000 C CNN
+F 2 "Divers:CrimpBlade" H 4500 600 60  0001 C CNN
+F 3 "" H 4500 600 60  0001 C CNN
+	1    4500 600 
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4350 600  4300 600 
+Wire Wire Line
+	4300 600  4300 750 
+Connection ~ 4300 750 
+$Comp
+L CONN_1 P7
+U 1 1 615600EB
+P 4250 1200
+F 0 "P7" H 4330 1200 40  0000 L CNN
+F 1 "0v" H 4250 1255 30  0000 C CNN
+F 2 "Divers:CrimpBlade" H 4250 1200 60  0001 C CNN
+F 3 "" H 4250 1200 60  0001 C CNN
+	1    4250 1200
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	4400 1200 4750 1200
+Wire Wire Line
+	4750 1200 4750 1300
+Wire Wire Line
+	4750 1300 5000 1300
+Connection ~ 5000 1300
 $EndSCHEMATC

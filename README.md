@@ -55,7 +55,16 @@ Replacing the blown VP parts with OEM parts would have been 1500 GBP with a firt
 
 # Sensors
 
-The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle and so can be fed through passive conditioning to procuse a 5V square wave. The pk2pk voltage rises with rpm as does frequency. Simulations say the very simple input curcuit will work with capacitors to DC isolate and 47K resistors to limit current into clamping diodes. Testing with a 12v signal to 2KHz (8KRPM) works. Will need to test for real. If this fails, the alternator W+ signal will have to be measured over a few seconds (850 RPM == 14Hz, may need to time between pulses.)
+
+
+The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle, however the signal is noisy and so it needs to be conditioned. A Schmitt trigger using an OpAmp set up positive feedback to enduce histeresis. The positive input uses a RC network acting as a low pass filter reducing the sensitivity as the rpm rises, eliminating high frequencies ( > 10KHz). On the negative a RC network smooths the input voltage to find the mean allowing automatic offset compensation. The time period constant of the -ve input is >> than the +ve.  The inputs are via 22K resistors with the voltage measured over 100K. There are 2 chopper diodes to limit the input voltage to no more than 1V.
+
+Using a 358 opamp with 5V supply the square wave out is 3.7V high and 0.7v low, which is just enough (3.5v being logic high), 1.5 below Vcc isnt great for an OpAmp, however 3v is high on an Arduino.
+
+The frequency is measured by timing 10 pulses using micros().
+
+The previous attempt without a Schmitt Trigger failed to work reliably due to noise.
+
 
 The standard VP oil pressure switch is a simple switch that closes when the oil pressure drops below a threashold.
 

@@ -155,10 +155,36 @@ void saveEngineHours() {
 
 
 #define PINS_FLYWHEEL 2
-volatile unsigned long flywheelPulses = 0;
-
+volatile int8_t pulseCount = 0;
+volatile unsigned long lastPulse=0;
+volatile unsigned long thisPulse=0;
+// record the time take for 10 pulses in us using micros, Should be fine 
+// for < 50KHz which would read 200uS.
+// 50Hz will be 200000.
 void flywheelPuseHandler() {
-  flywheelPulses++;
+  pulseCount++;
+  if ( pulseCount == 10 ) {
+    lastPulse = thisPulse;
+    thisPulse = micros();
+    pulseCount = 0;
+  }
+}
+
+double calculateFrequency() {
+  noInterrupts();
+  unsigned long lastP = lastPulse;
+  unsigned long thisP = thisPulse;
+  interrupts();
+  unsigned long period = thisP - lastP;
+  if ( (period == 0) || (micros() - thisP) > 1000000 ) {
+    // no pulses, > 10MHz or < 10Hz, assume not running.
+    return 0;
+  }
+  INFOLN(period);
+  // 10 pulses.
+  // 1 micro for 10 pulses would be 10MHz
+  // unsigned long
+  return 10000000.0/period;
 }
 
 void initRPM() {
@@ -172,32 +198,23 @@ double engineRPM = 0;
 #define FLYWHEEL_READ_PERIOD 2000
 // pulses  Perms -> RPM conversion.
 // 415Hz at idle below needs adjusting.//
-// 415Hz ==  207 pulses == 850 rpm
-//
+// 415Hz == 850 rpm
+// 
 // pulses*850*1000/(duration)*415
-#define FLYWHEEL_CONVERSION_U 850000 // 
-#define FLYWHEEL_CONVERSION_L 415 //
-#define RPM_FACTOR 2048.1927711 // 850000/415
+#define RPM_FACTOR 2.054 // 2048.1927711 // 850000/415
+
+
 void readEngineRPM() {
   static unsigned long lastFlywheelReadTime = 0;
-  static unsigned long lastFlywheelPulses = 0;
   unsigned long now = millis();
   if ( now > lastFlywheelReadTime+FLYWHEEL_READ_PERIOD ) {
-    noInterrupts();
-    unsigned long measuredFlywheelPulses = flywheelPulses;
-    interrupts();
-    DEBUG(F("RPM:"));
-    DEBUG(measuredFlywheelPulses);
-    DEBUG(",");
-    DEBUG((measuredFlywheelPulses-lastFlywheelPulses));
-    DEBUG(",");
-    DEBUG((now-lastFlywheelReadTime));
-    DEBUG(",");
-    engineRPM = (RPM_FACTOR*(measuredFlywheelPulses-lastFlywheelPulses)/(1.0*(now-lastFlywheelReadTime)));
     lastFlywheelReadTime = now;
-    lastFlywheelPulses = measuredFlywheelPulses;
-    DEBUGLN(engineRPM);
- 
+    double frequency = calculateFrequency();
+    INFO(F("RPM:"));
+    INFO(frequency);
+    INFO(",");
+    engineRPM = (RPM_FACTOR*frequency);
+    INFOLN(engineRPM); 
   }
 }
 
@@ -217,10 +234,10 @@ void readFuelLevel() {
   if ( now > lastFuelReadTime+FUEL_READ_PERIOD ) {
     lastFuelReadTime = now;
     // probably need a long to do this calc
-    DEBUG(F("Fuel:"));
+    INFO(F("Fuel:"));
     int16_t fuelReading = analogRead(ADC_FUEL_SENSOR);
-    DEBUG(fuelReading);
-    DEBUG(",");
+    INFO(fuelReading);
+    INFO(",");
     // Rtop = 1000
     // Rempty = 190
     // Rfull = 0
@@ -228,7 +245,7 @@ void readFuelLevel() {
     // Measured at 263
 
     // ADCfull = 0 = 0v 0
-    fuelReading  = (100*(ADC_READING_EMPTY-fuelReading))/(ADC_READING_EMPTY);
+    fuelReading  = 100-(100*(ADC_READING_EMPTY-fuelReading))/(ADC_READING_EMPTY);
     // the restances may be out of spec so deal with > 100 or < 0.
     if (fuelReading > 100 ) {
       fuelLevel = 100;
@@ -237,7 +254,7 @@ void readFuelLevel() {
     } else {
       fuelLevel = fuelReading;
     }
-    DEBUGLN(fuelLevel);
+    INFOLN(fuelLevel);
   }
 }
 
@@ -630,7 +647,7 @@ void setupNMEA2000() {
   const unsigned long batteryMessages[] = {  127508L,0L };
   NMEA2000.ExtendTransmitMessages(batteryMessages,NMEA2000_DEV_BATTERIES);
   NMEA2000.SetN2kCANMsgBufSize(2);
-  NMEA2000.SetN2kCANSendFrameBufSize(20);
+  //NMEA2000.SetN2kCANSendFrameBufSize(20);
   Serial.println(F("Opening CAN"));
   NMEA2000.Open();
 }
