@@ -122,7 +122,7 @@ Building with debug enabled all in ram gives
 RAM:   [===       ]  32.2% (used 659 bytes from 2048 bytes)
 Flash: [====      ]  37.4% (used 11492 bytes from 30720 bytes)
 
-Initial tests indicate 1K ram available at all times when runing, compared to the < 60 bytes reported with the smallest viable NMEA2000 configuration. Most of the implementation is informed by the NMEA2000 code and functionality for each use is by extension only. To reduce the work load on a polling only interface to the MCP2515 message filters are implemented on recieve. It only supports a MCP2515 over SPI and will only run on an AVR based chip as it assumes little endian.
+Initial tests indicate 1292 bytes ram available at all times when runing, compared to the < 60 bytes reported with the smallest viable NMEA2000 configuration. Most of the implementation is informed by the NMEA2000 code and functionality for each use is by extension only. To reduce the work load on a polling only interface to the MCP2515 message filters are implemented on recieve. It only supports a MCP2515 over SPI and will only run on an AVR based chip as it assumes little endian.
 
 The code has, or is being verified talking to a ESP32 + MCP2562 running the NMEA2000 device analyser.
 

@@ -585,8 +585,8 @@ const SNMEA2000ProductInfo productInfomation PROGMEM={
                                        1300,                        // N2kVersion
                                        44,                         // Manufacturer's product code
                                        "EMS",    // Manufacturer's Model ID
-                                       "1.1.0.14 (2017-06-11)",     // Manufacturer's Software version code
-                                       "1.1.0.14 (2017-06-11)",      // Manufacturer's Model version
+                                       "1.2.3.4 (2017-06-11)",     // Manufacturer's Software version code
+                                       "5.6.7.8 (2017-06-11)",      // Manufacturer's Model version
                                        "0000001",                  // Manufacturer's Model serial code
                                        0,                           // SertificationLevel
                                        1                            // LoadEquivalency
@@ -861,7 +861,7 @@ void sendTemperatures() {
 #ifdef USE_SNMEA
     engineMonitor.sendTemperatureMessage(0,0,14,CToKelvin(0.1*temperature[EXHAUST_TEMP]));
     engineMonitor.sendTemperatureMessage(1,1,3,CToKelvin(0.1*temperature[ENGINEROOM_TEMP]));
-    engineMonitor.sendTemperatureMessage(2,3,15,CToKelvin(0.1*temperature[ALTERNATOR_TEMP]));
+    engineMonitor.sendTemperatureMessage(2,3,15,CToKelvin(0.1*temperature[ALTERNATOR_TEMP]));    
 #else
     tN2kMsg N2kMsg;
 

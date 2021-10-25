@@ -141,7 +141,7 @@ void SNMEA2000::sendPGNList(MessageHeader *messageHeader, int listType, const un
     startFastPacket(messageHeader, 1+ipgn*3);
     outputByte(listType); // RX PGN List
     for(int i = 0; i < ipgn; i++) {
-        output3ByteInt(pgm_read_dword(&pgnList[ipgn]));
+        output3ByteInt(pgm_read_dword(&pgnList[i]));
     }
     finishFastPacket();
 }
@@ -159,16 +159,17 @@ void SNMEA2000::sendIsoAddressClaim() {
 
 void SNMEA2000::sendProductInformation(MessageHeader *requestMessageHeader) {
     MessageHeader messageHeader(126996L, 6, deviceAddress, requestMessageHeader->source);
+
     // this is a fast packet, has to be constructed from the struc on the fly.
     startFastPacket(&messageHeader, 4+32*4+2);
-    output2ByteUInt(productInfo->nk2version);
-    output2ByteUInt(productInfo->productCode);
-    outputFixedString(productInfo->modelID, 32, 0xff);
-    outputFixedString(productInfo->softwareVersion, 32, 0xff);
-    outputFixedString(productInfo->modelVersion, 32, 0xff);
-    outputFixedString(productInfo->serialNumber, 32, 0xff);
-    outputByte(productInfo->certificationLevel);
-    outputByte(productInfo->loadEquivalency);
+    output2ByteUInt(pgm_read_word(&productInfo->nk2version));
+    output2ByteUInt(pgm_read_word(&productInfo->productCode));
+    outputFixedString(pgm_read_ptr(&productInfo->modelID), 32, 0xff);
+    outputFixedString(pgm_read_ptr(&productInfo->softwareVersion), 32, 0xff);
+    outputFixedString(pgm_read_ptr(&productInfo->modelVersion), 32, 0xff);
+    outputFixedString(pgm_read_ptr(&productInfo->serialNumber), 32, 0xff);
+    outputByte(pgm_read_byte(&productInfo->certificationLevel));
+    outputByte(pgm_read_byte(&productInfo->loadEquivalency));
     finishFastPacket();
 }
 
@@ -176,65 +177,65 @@ void SNMEA2000::sendProductInformation(MessageHeader *requestMessageHeader) {
 void SNMEA2000::sendConfigurationInformation(MessageHeader *requestMessageHeader) {
     MessageHeader messageHeader(126998L, 6, deviceAddress, requestMessageHeader->source);
     // this is a fast packet.
-    int manufacturerInfoLen = getPgmSize(configInfo->manufacturerInfo,70);
-    int installDesc1Len = getPgmSize(configInfo->installDesc1,70);
-    int installDesc2Len = getPgmSize(configInfo->installDesc2,70);
+    char * manufacturerInfo = pgm_read_ptr(&configInfo->manufacturerInfo);
+    char * installDesc1 = pgm_read_ptr(&configInfo->installDesc1);
+    char * installDesc2 = pgm_read_ptr(&configInfo->installDesc2);
+    
+    int manufacturerInfoLen = strnlen(manufacturerInfo,70);
+    int installDesc1Len = strnlen(installDesc1,70);
+    int installDesc2Len = strnlen(installDesc2,70);
     startFastPacket(&messageHeader, manufacturerInfoLen+installDesc1Len+installDesc2Len+6 );
-    outputVarString(configInfo->manufacturerInfo, manufacturerInfoLen);
-    outputVarString(configInfo->installDesc1, installDesc1Len);
-    outputVarString(configInfo->installDesc1, installDesc2Len);
+    outputVarString(manufacturerInfo, manufacturerInfoLen);
+    outputVarString(installDesc1, installDesc1Len);
+    outputVarString(installDesc2, installDesc2Len);
     finishFastPacket();
 }
-int SNMEA2000::getPgmSize(const char *str, int maxLen) {
-    for(int i =0; i < maxLen; i++) {
-        char c = pgm_read_byte(str[i]);
-        if ( c == '\0') return i;
-    }
-    return maxLen;
-}
+
 void SNMEA2000::outputVarString(const char * str,  uint8_t strLen) {
     outputByte(strLen+2);
     outputByte(0x01);
     for(int i = 0; i < strLen; i++) {
-        outputByte(pgm_read_byte(&str[i]));
+        outputByte(str[i]);
     }
 }
 
 void SNMEA2000::outputFixedString(const char * str, int maxLen, byte padding) {
     int ib = 0;
+    Serial.print(str); 
     while( ib < maxLen ) {
-        byte bs = pgm_read_byte(&str[ib++]);
-        if (bs == '\0') break;
+        byte bs = str[ib++];
         outputByte(bs);
+        if (bs == '\0') break;
     }
     while (ib < maxLen) {
         outputByte(padding);
+        ib++;
     }
 }
 
 void SNMEA2000::output2ByteUInt(uint16_t i) {
-    outputByte((i>>8)&0xff);
     outputByte(i&0xff);
+    outputByte((i>>8)&0xff);
 }
 void SNMEA2000::output2ByteInt(uint16_t i) {
-    outputByte((i>>8)&0xff);
     outputByte(i&0xff);
+    outputByte((i>>8)&0xff);
 }
 void SNMEA2000::output3ByteInt(int32_t i) {
-    outputByte((i>>16)&0xff);
-    outputByte((i>>8)&0xff);
     outputByte(i&0xff);
+    outputByte((i>>8)&0xff);
+    outputByte((i>>16)&0xff);
 }
 void SNMEA2000::output2ByteDouble(double value, double precision) {
     if (value == SNMEA2000::n2kDoubleNA ) {
         // udefined is 32768 = 0x8000
-        outputByte(0x80);
         outputByte(0x00);
+        outputByte(0x80);
     } else {
         double vd=round(value/precision);
         int16_t i = (vd>=-32768 && vd<0x7fee)?(int16_t)vd:0x7fee;
-        outputByte((i>>8)&0xff);
         outputByte(i&0xff);
+        outputByte((i>>8)&0xff);
     }
 }
 void SNMEA2000::output2ByteUDouble(double value, double precision) {
@@ -245,25 +246,25 @@ void SNMEA2000::output2ByteUDouble(double value, double precision) {
     } else {
         double vd=round(value/precision);
         uint16_t i = (vd>=0 && vd<0xfffe)?(int16_t)vd:0xfffe;
-        outputByte((i>>8)&0xff);
         outputByte(i&0xff);
+        outputByte((i>>8)&0xff);
     }
 
 }
 void SNMEA2000::output4ByteDouble(double value, double precision) {
     if (value == SNMEA2000::n2kDoubleNA ) {
         // undef is 2147483647 = 7FFFFFFF
+        outputByte(0xff);
+        outputByte(0xff);
+        outputByte(0xff);
         outputByte(0x7f);
-        outputByte(0xff);
-        outputByte(0xff);
-        outputByte(0xff);
     } else {
         double vd=round(value/precision);
         int32_t i = (vd>=-2147483648L && vd<0x7ffffffe)?(int16_t)vd:0x7ffffffe;
-        outputByte((i>>24)&0xff);
-        outputByte((i>>16)&0xff);
-        outputByte((i>>8)&0xff);
         outputByte(i&0xff);
+        outputByte((i>>8)&0xff);
+        outputByte((i>>16)&0xff);
+        outputByte((i>>24)&0xff);
     }
 }
 void SNMEA2000::output4ByteUDouble(double value, double precision) {
@@ -276,10 +277,10 @@ void SNMEA2000::output4ByteUDouble(double value, double precision) {
     } else {
         double vd=round(value/precision);
         uint32_t i = (vd>=0 && vd<0xfffffffe)?(int16_t)vd:0xfffffffe;
-        outputByte((i>>24)&0xff);
-        outputByte((i>>16)&0xff);
-        outputByte((i>>8)&0xff);
         outputByte(i&0xff);
+        outputByte((i>>8)&0xff);
+        outputByte((i>>16)&0xff);
+        outputByte((i>>24)&0xff);
     }
 }
 
@@ -289,7 +290,7 @@ void SNMEA2000::setupRXFilter() {
         //                           -------- Source Addresss 8 bits @0
         //                  -------- PDU specific 8 bits @ 8
         //         -------- PDU Format 8 bits @ 16
-        //       - Data Page 1 but @24
+        //       - Data Page 1 bit @24
         //     - reserved 1 bit @25
         // --- priority (3 bits starting @26)
 
@@ -316,15 +317,17 @@ void SNMEA2000::setupRXFilter() {
         // Filter 60928L to 0xff  11101110 11111111 00000000
 
 
-        CAN.init_Mask(0,1,0xf9ff0);
-        CAN.init_Mask(1,1,0xf9ff0);
-        CAN.init_Filt(0,1,0xE8FF); // broadcasts
-        CAN.init_Filt(0,1,0xE800 || deviceAddress); // thisDevice
+
+
+        //CAN.init_Mask(0,1,0xf9ff0);
+        //CAN.init_Mask(1,1,0xf9ff0);
+        //CAN.init_Filt(0,1,0xE8FF); // broadcasts
+        //CAN.init_Filt(0,1,0xE800 || deviceAddress); // thisDevice
 }
 
 void SNMEA2000::clearRXFilter() {
-        CAN.init_Mask(0,1,0x0);
-        CAN.init_Mask(1,1,0x0);
+        //CAN.init_Mask(0,1,0x0);
+        //CAN.init_Mask(1,1,0x0);
 }
 
 
