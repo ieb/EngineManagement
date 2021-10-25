@@ -112,6 +112,20 @@ Flash: [========= ]  89.4% (used 27458 bytes from 30720 bytes)
 
 If debugging of the sensors is enabled, then NMEA2000 output may have to be disabled to get the code to fit into FLASH. No problems seen with RAM at the moment, but it hasnt been tested on a live NMEA2000 bus yet.
 
+## Update on memory.
+
+Memory usage has proved a problem. The NMEA2000 library was designed for chips with more memory than a Pro mini and altough it will run, it runs out of stack and heap when dealing with ISO Reqeusts, causing the cpu to lock up or crash. It is possble to greatly reduce memory usage by limiting buffer sizes but this truncates the responses ot the ISO requests. I think the underlying problem is that the NMEA2000 library uses temporary buffers allow it to use interrupts and to support TP packets.
+
+So, the code is now switched to a smaller SNMEA2000 library. This only uses an 8 byte buffer for sending and is written to load that buffer, sending when full. It supports standard packets and fast packet messages. It doesnt support interrupts and is a lot simpler. 
+
+Building with debug enabled all in ram gives
+RAM:   [===       ]  32.2% (used 659 bytes from 2048 bytes)
+Flash: [====      ]  37.4% (used 11492 bytes from 30720 bytes)
+
+Initial tests indicate 1K ram available at all times when runing, compared to the < 60 bytes reported with the smallest viable NMEA2000 configuration. Most of the implementation is informed by the NMEA2000 code and functionality for each use is by extension only. To reduce the work load on a polling only interface to the MCP2515 message filters are implemented on recieve. It only supports a MCP2515 over SPI and will only run on an AVR based chip as it assumes little endian.
+
+The code has, or is being verified talking to a ESP32 + MCP2562 running the NMEA2000 device analyser.
+
 
 
 
@@ -159,3 +173,26 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [ ] Install
 [ ] Test running
 [ ] Order boards and build spares.
+
+
+# CanDrivers
+
+# AVR -> MCP2515 -> TJA1050
+
+TJA1050 runs on 5V but can take 3 or 5v logic in.
+MCP2515 will run on 3v or 5v On 3v it will need a 1K/10K divider to take TJA1050 out from 3.6v to 3.3v
+
+Scope output for this setup on 5V is very clean
+
+
+
+# ESP -> TJA1050
+
+TJA1050 runs on 5v with a divider on RX out to take Vrxh to 3.3v, may be easier than a MCP2562, although the output from a MCP2562 is not nearly as clean.
+
+# Pi -> MCP2515 -> TA1050
+
+Same as 3v AVR 3v.
+Would also need a RTC, DS3231  with a LI charger TP4056
+
+
