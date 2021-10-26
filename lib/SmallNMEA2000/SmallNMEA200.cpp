@@ -310,7 +310,7 @@ void SNMEA2000::setupRXFilter() {
         // 60928L == 11101110 00000000 238 PDU1
         //
         // Accept for our device and 0xfff
-        // Mask                 11111001 11111111 00000000
+        // Mask                 11111001 11111111 00000000  = 0xf9ff00
         // Filter 59392L to us  11101000 <our device> 00000000
         // Filter 59392L to 0xff  11101000 11111111 00000000
         // Filter 59904L to 0xff  11101010 11111111 00000000
@@ -318,16 +318,20 @@ void SNMEA2000::setupRXFilter() {
 
 
 
-
-        //CAN.init_Mask(0,1,0xf9ff0);
-        //CAN.init_Mask(1,1,0xf9ff0);
-        //CAN.init_Filt(0,1,0xE8FF); // broadcasts
-        //CAN.init_Filt(0,1,0xE800 || deviceAddress); // thisDevice
+        
+        Serial.println("Set Masks and Filters");
+        CAN.init_Mask(0,1,0xf9ff00);
+        CAN.init_Mask(1,1,0xf9ff00);
+        CAN.init_Filt(0,1,0xE8FF00); // broadcasts
+        CAN.init_Filt(1,1,0xE80000 | (((uint16_t)deviceAddress<<8)&0xff00)); // thisDevice
 }
 
+
+
 void SNMEA2000::clearRXFilter() {
-        //CAN.init_Mask(0,1,0x0);
-        //CAN.init_Mask(1,1,0x0);
+    Serial.println("Clear Masks");
+        CAN.init_Mask(0,1,0x0);
+        CAN.init_Mask(1,1,0x0);
 }
 
 
