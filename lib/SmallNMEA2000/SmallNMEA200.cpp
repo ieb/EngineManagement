@@ -32,22 +32,22 @@ void SNMEA2000::processMessages() {
         MessageHeader messageHeader(CAN.getCanId());
         switch (messageHeader.pgn) {
           case 59392L: /*ISO Acknowledgement*/
-            Serial.print("<ack ");
-             messageHeader.print(buf,len);
+            //Serial.print("<ack ");
+            //messageHeader.print(buf,len);
             break;
           case 59904L: /*ISO Request*/
-            Serial.print("<req ");
-             messageHeader.print(buf,len);
+            //Serial.print("<req ");
+            //messageHeader.print(buf,len);
             handleISORequest(&messageHeader, buf, len);
             break;
           case 60928L: /*ISO Address Claim*/
-            Serial.print("<claim ");
-             messageHeader.print(buf,len);
+            //Serial.print("<claim ");
+            //messageHeader.print(buf,len);
             handleISOAddressClaim(&messageHeader, buf, len);
             break;
-           default:
-             Serial.print("<unknown");
-             messageHeader.print(buf,len);
+          //default:
+             //Serial.print("<unknown");
+             //messageHeader.print(buf,len);
 
         }
     }
@@ -96,26 +96,26 @@ void SNMEA2000::handleISORequest(MessageHeader *messageHeader, byte * buffer, in
         return; // dont respond to queries until address is claimed.
     }
     unsigned long requestedPGN = (((unsigned long )buffer[2])<<16)|(((unsigned long )buffer[1])<<8)|(buffer[0]);
-    Serial.print("ReqPGN:");Serial.println(requestedPGN);
+    //Serial.print("ReqPGN:");Serial.println(requestedPGN);
     switch(requestedPGN) {
       case 60928L: /*ISO Address Claim*/  // Someone is asking others to claim their addresses
-        Serial.print("other_claim>");
+        //Serial.print("other_claim>");
         sendIsoAddressClaim();
         break;
       case 126464L:
-        Serial.print("pgns>");
+        //Serial.print("pgns>");
         sendPGNLists(messageHeader);
         break;
       case 126996L: /* Product information */
-        Serial.print("prod>");
+        //Serial.print("prod>");
         sendProductInformation(messageHeader);
         break;
       case 126998L: /* Configuration information */
-        Serial.print("cond>");
+        //Serial.print("cond>");
         sendConfigurationInformation(messageHeader);
         break;
       default:
-        Serial.print("sending nak>");
+        //Serial.print("sending nak>");
         sendIsoAcknowlegement(messageHeader, 1, 0xff);
     }
 
@@ -201,7 +201,7 @@ void SNMEA2000::outputVarString(const char * str,  uint8_t strLen) {
 
 void SNMEA2000::outputFixedString(const char * str, int maxLen, byte padding) {
     int ib = 0;
-    Serial.print(str); 
+    //Serial.print(str); 
     while( ib < maxLen ) {
         byte bs = str[ib++];
         outputByte(bs);
@@ -228,9 +228,9 @@ void SNMEA2000::output3ByteInt(int32_t i) {
 }
 void SNMEA2000::output2ByteDouble(double value, double precision) {
     if (value == SNMEA2000::n2kDoubleNA ) {
-        // udefined is 32768 = 0x8000
-        outputByte(0x00);
-        outputByte(0x80);
+        // udefined is 32767 = 0x7FFF
+        outputByte(0xff);
+        outputByte(0x7f);
     } else {
         double vd=round(value/precision);
         int16_t i = (vd>=-32768 && vd<0x7fee)?(int16_t)vd:0x7fee;
@@ -276,7 +276,7 @@ void SNMEA2000::output4ByteUDouble(double value, double precision) {
         outputByte(0xff);
     } else {
         double vd=round(value/precision);
-        uint32_t i = (vd>=0 && vd<0xfffffffe)?(int16_t)vd:0xfffffffe;
+        uint32_t i = (vd>=0 && vd<0xfffffffe)?(uint32_t)vd:0xfffffffe;
         outputByte(i&0xff);
         outputByte((i>>8)&0xff);
         outputByte((i>>16)&0xff);
@@ -413,11 +413,12 @@ void SNMEA2000::sendIsoAcknowlegement(MessageHeader *requestMessageHeader, unsig
 }
 
 void SNMEA2000::sendMessage(MessageHeader *messageHeader, byte * message, int length) {
-    Serial.print(freeMemory());
-    Serial.print(",");
-    messageHeader->print(message, length);
-    byte res = CAN.sendMsgBuf(messageHeader->id, 1, length, message);
-    Serial.println(res);
+    //Serial.print(freeMemory());
+    //Serial.print(",");
+    //messageHeader->print(message, length);
+    //byte res = 
+    CAN.sendMsgBuf(messageHeader->id, 1, length, message);
+    //Serial.println(res);
 }
 
 
@@ -429,8 +430,8 @@ void EngineMonitor::sendRapidEngineDataMessage(
     MessageHeader messageHeader(127488L, 2, getAddress(), SNMEA2000::broadcastAddress);
     startPacket(&messageHeader);
     outputByte(engineInstance);
-    output2ByteDouble(engineSpeed,0.25);
-    output2ByteDouble(engineBoostPressure,100);
+    output2ByteUDouble(engineSpeed,0.25);
+    output2ByteUDouble(engineBoostPressure,100);
     outputByte(engineTiltTrim);
     outputByte(0xff);
     outputByte(0xff);
@@ -445,7 +446,7 @@ void EngineMonitor::sendEngineDynamicParamMessage(
     uint16_t status1,
     uint16_t status2,
     double engineOilPressure,
-    double engineOilPTemperature,
+    double engineOilTemperature,
     double fuelRate,
     double engineCoolantPressure,
     double engineFuelPressure,
@@ -457,7 +458,7 @@ void EngineMonitor::sendEngineDynamicParamMessage(
     startFastPacket(&messageHeader, 26);
     outputByte(engineInstance);
     output2ByteUDouble(engineOilPressure,100);
-    output2ByteUDouble(engineOilPTemperature,0.1);
+    output2ByteUDouble(engineOilTemperature,0.1);
     output2ByteUDouble(engineCoolantTemperature,0.01);
     output2ByteDouble(alternatorVoltage,0.01);
     output2ByteDouble(fuelRate,0.1);
@@ -467,7 +468,7 @@ void EngineMonitor::sendEngineDynamicParamMessage(
     outputByte(0xff); // reserved
     output2ByteUInt(status1);
     output2ByteUInt(status2);
-    outputByte(engineLoad); 
+    outputByte(engineLoad);
     outputByte(engineTorque);
     finishFastPacket();
 
@@ -481,10 +482,10 @@ void EngineMonitor::sendDCBatterStatusMessage(
     ) {
     MessageHeader messageHeader(127508L, 6, getAddress(), SNMEA2000::broadcastAddress);
     startPacket(&messageHeader);
-    outputByte(batteryInstance);
+    outputByte(batteryInstance);  
     output2ByteDouble(batteryVoltage,0.01);
     output2ByteDouble(batteryCurrent,0.1);
-    output2ByteDouble(batteryTemperature,0.01);
+    output2ByteUDouble(batteryTemperature,0.01);
     outputByte(sid);
     finishPacket();
 }
@@ -497,7 +498,7 @@ void EngineMonitor::sendFluidLevelMessage(
     startPacket(&messageHeader);
     byte b = ((type<<4)&0xff)|(instance&0xff);
     outputByte(b);
-    output2ByteDouble(level,0.0004);
+    output2ByteDouble(level,0.004);
     output4ByteUDouble(capacity,0.1);
     outputByte(0xff);
     finishPacket();

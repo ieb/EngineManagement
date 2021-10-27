@@ -39,16 +39,9 @@
 
 
 // define the CS pin as the libraries assume otherwise.
-#define USE_SNMEA 1
-#ifdef USE_SNMEA
 #define SNMEA_SPI_CS_PIN 10
 #include "SmallNMEA2000.h"
 #define CToKelvin(x) x+283.15
-#else
-#define N2k_SPI_CS_PIN 10
-#include "NMEA2000_CAN.h"      
-#include "N2kMessages.h"
-#endif
 #include <util/crc16.h>
 #include <EEPROM.h>
 
@@ -96,10 +89,10 @@ void loop() {
   readVoltages();
   readNTC();
 #ifdef ENABLE_NMEA2000
-  //sendRapidEngineData();
-  //sendEngineData();
-  //sendVoltages();
-  //sendTemperatures();
+  sendRapidEngineData();
+  sendEngineData();
+  sendVoltages();
+  sendTemperatures();
   sendFuel();
   processMessages();
 #endif
@@ -117,8 +110,9 @@ union CRCStorage {
 
 EngineHoursStorage engineHours;
 uint32_t baseEngineHoursPeriods = 0;
-//  engine periods to hours factor 15000/3600000 = 0.004166666667 
+//  engine periods to hours factor 15/3600 = 0.004166666667 
 #define ENGINE_HOURS 0.004166666667*engineHours.engineHoursPeriods
+#define ENGINE_SECONDS 15L*engineHours.engineHoursPeriods
 
 void loadEngineHours() {
   uint16_t crc = 0;
@@ -574,7 +568,6 @@ void readNTC() {
 
 
 
-#ifdef USE_SNMEA
 // These are the byte[] of the NMEA messages for ISO responses to the Product Information
 // Configuration Information. They are sent as a fastpacket and only consume
 // 8 bytes of ram at runtime to process.
@@ -613,119 +606,21 @@ const unsigned long rxPGN[] PROGMEM = {
 
 EngineMonitor engineMonitor(24, 3, &productInfomation, &configInfo, &txPGN[0], &rxPGN[0]);
 
-#else
-
-
-#define NMEA2000_DEV_ENGINE      0
-#define NMEA2000_DEV_BATTERIES   0
-
-
-const tNMEA2000::tProductInformation EMSProductInformation PROGMEM={
-                                       1300,                        // N2kVersion
-                                       44,                         // Manufacturer's product code
-                                       "EMS",    // Manufacturer's Model ID
-                                       "1.1.0.14 (2017-06-11)",     // Manufacturer's Software version code
-                                       "1.1.0.14 (2017-06-11)",      // Manufacturer's Model version
-                                       "0000001",                  // Manufacturer's Model serial code
-                                       0,                           // SertificationLevel
-                                       1                            // LoadEquivalency
-                                      };                                      
-
-const tNMEA2000::tProductInformation BatteriesProductInformation PROGMEM={
-                                       1300,                        // N2kVersion
-                                       100,                         // Manufacturer's product code
-                                       "BMS",    // Manufacturer's Model ID
-                                       "1.1",     // Manufacturer's Software version code
-                                       "1.1",      // Manufacturer's Model version
-                                       "1",                  // Manufacturer's Model serial code
-                                       0,                           // SertificationLevel
-                                       1                            // LoadEquivalency
-                                      };                                      
-  const unsigned long engineMessages[] PROGMEM = {  
-    127488L, // Rapid engine ideally 0.1s
-    127489L, // Dynamic engine 0.5s
-    127505L, // Tank Level 2.5s
-    130316L, // Extended Temperature 2.5s
-    127508L,
-    0L
-  };
-
-const char EMSManufacturerInformation [] PROGMEM = "ieb"; 
-const char EMSInstallationDescription1 [] PROGMEM = "EMS"; 
-const char EMSInstallationDescription2 [] PROGMEM = "Luna"; 
-#endif
 
 void setupNMEA2000() {
 
-#ifdef USE_SNMEA
   Serial.println(F("Opening CAN"));
   engineMonitor.open();
   Serial.println(F("Opened"));
-#else
-
-
-  NMEA2000.SetDeviceCount(1);
-  // Set Configuration information
-  NMEA2000.SetProgmemConfigurationInformation(EMSManufacturerInformation,EMSInstallationDescription1,EMSInstallationDescription2);
-
-  // Set Product information
-  NMEA2000.SetProductInformation(&EMSProductInformation, NMEA2000_DEV_ENGINE );
-  //NMEA2000.SetProductInformation(&BatteriesProductInformation, NMEA2000_DEV_BATTERIES );
-
-
-  NMEA2000.SetDeviceInformation(3, // Unique number. Use e.g. Serial number.
-                                160, // Device function=Engine Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-                                50, // Device class=Propulsion. See codes on  http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-                                2085, // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
-                                4, // Marine
-                                NMEA2000_DEV_ENGINE
-                                );
-  //NMEA2000.SetDeviceInformation(4, // Unique number. Use e.g. Serial number.
-  //                              170, // Device function=Engine Gateway. See codes on http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-  //                              35, // Device class=Propulsion. See codes on  http://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-  //                              2085, // Just choosen free from code list on http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf                               
-  //                              4, // Marine
-  //                              NMEA2000_DEV_BATTERIES
-  //                              );
-
-  // debugging with no chips connected
-  //
-
-  // this is a node, we are not that interested in other traffic on the bus.
-  NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend,24);
-#if defined(INFO_NMEA2000)
-  NMEA2000.SetForwardStream(&Serial);
-  NMEA2000.EnableForward(true);
-  NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
-#elif defined(DEBUG_NMEA2000)
-  NMEA2000.SetForwardStream(&Serial);
-  NMEA2000.SetDebugMode(tNMEA2000::dm_ClearText);
-  NMEA2000.SetForwardType(tNMEA2000::fwdt_Text); 
-#else
-  NMEA2000.EnableForward(false);
-#endif
-  NMEA2000.ExtendTransmitMessages(engineMessages,NMEA2000_DEV_ENGINE);
-//  const unsigned long batteryMessages[] = {  127508L,0L };
-//  NMEA2000.ExtendTransmitMessages(batteryMessages,NMEA2000_DEV_BATTERIES);
-  NMEA2000.SetN2kCANMsgBufSize(2); // any more than 1 and there is no ram left
-  NMEA2000.SetN2kCANSendFrameBufSize(20); // this must be 20 to send product info, 60 bytes left.
-  Serial.println(F("Opening CAN"));
-  NMEA2000.Open();
-  Serial.println(F("Opened"));
-#endif
 }
 
 void processMessages() {
-#ifdef USE_SNMEA
   engineMonitor.processMessages();
-#else 
-  NMEA2000.ParseMessages();
-#endif  
 }
 
 
 
-#define RAPID_ENGINE_UPDATE_PERIOD 100
+#define RAPID_ENGINE_UPDATE_PERIOD 10000
 int diff = 0;
 void sendRapidEngineData() {
   static unsigned long lastRapidEngineUpdate=0;
@@ -735,20 +630,13 @@ void sendRapidEngineData() {
     diff = diff - RAPID_ENGINE_UPDATE_PERIOD;
     lastRapidEngineUpdate = now;
     // PGN127488
-
-#ifdef USE_SNMEA
     engineMonitor.sendRapidEngineDataMessage(0,engineRPM);
-#else
-    tN2kMsg N2kMsg;
-    SetN2kEngineParamRapid(N2kMsg, 0, engineRPM);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
-#endif
   }
 }
 
 
 
-#define ENGINE_UPDATE_PERIOD 2000
+#define ENGINE_UPDATE_PERIOD 10000
 
 void sendEngineData() {
   static unsigned long lastEngineUpdate=0;
@@ -757,20 +645,10 @@ void sendEngineData() {
     lastEngineUpdate = now;
     // PGN127489
 
-#ifdef USE_SNMEA
     engineMonitor.sendEngineDynamicParamMessage(0,
-        ENGINE_HOURS,
+        ENGINE_SECONDS,
         CToKelvin(coolantTemperature),
         voltages[ALTERNATOR_VOLTAGE]);
-#else
-    tN2kMsg N2kMsg;
-    SetN2kEngineDynamicParam(N2kMsg, 0, N2kDoubleNA, N2kDoubleNA, CToKelvin(coolantTemperature), voltages[ALTERNATOR_VOLTAGE],
-                      N2kDoubleNA, ENGINE_HOURS, N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kInt8NA,0,0);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
-#endif
-    Serial.println(freeMemory());
-
-
   }
 }
 
@@ -785,22 +663,9 @@ void sendVoltages() {
   if ( now > lastVoltageUpdate+VOLTAGE_UPDATE_PERIOD ) {
     lastVoltageUpdate = now;
 
-#ifdef USE_SNMEA
     engineMonitor.sendDCBatterStatusMessage(0,0,voltages[SERVICE_BATTERY_VOLTAGE],CToKelvin(0.1*temperature[ENGINEROOM_TEMP]));
     engineMonitor.sendDCBatterStatusMessage(1,1,voltages[ENGINE_BATTERY_VOLTAGE],CToKelvin(0.1*temperature[ENGINEROOM_TEMP]));
     engineMonitor.sendDCBatterStatusMessage(2,3,voltages[ALTERNATOR_VOLTAGE],CToKelvin(0.1*temperature[ALTERNATOR_TEMP]));
-#else
-
-
-    tN2kMsg N2kMsg;
-    SetN2kDCBatStatus(N2kMsg,0, voltages[SERVICE_BATTERY_VOLTAGE], N2kDoubleNA, CToKelvin(0.1*temperature[ALTERNATOR_TEMP]), 0);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
-    SetN2kDCBatStatus(N2kMsg,1, voltages[ENGINE_BATTERY_VOLTAGE], N2kDoubleNA, CToKelvin(0.1*temperature[ENGINEROOM_TEMP]), 1);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
-    // send the Alternator information as if it was a 3rd battery, becuase there is no other way.
-    SetN2kDCBatStatus(N2kMsg,2, voltages[ALTERNATOR_VOLTAGE], N2kDoubleNA, CToKelvin(0.1*temperature[ALTERNATOR_TEMP]), 2);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_BATTERIES);
-#endif
   }
 }
 
@@ -814,16 +679,7 @@ void sendFuel() {
   unsigned long now = millis();
   if ( now > lastFuelUpdate+FUEL_UPDATE_PERIOD ) {
     lastFuelUpdate = now;
-
-#ifdef USE_SNMEA
-  engineMonitor.sendFluidLevelMessage(0,0,fuelLevel,60);
-#else
-
-    tN2kMsg N2kMsg;
-    // always send the fuel level data.
-    SetN2kFluidLevel(N2kMsg,0,N2kft_Fuel,fuelLevel,60);
-    NMEA2000.SendMsg(N2kMsg, NMEA2000_DEV_ENGINE);
-#endif
+    engineMonitor.sendFluidLevelMessage(0,0,fuelLevel,60);
   }
 }
 
@@ -858,22 +714,9 @@ void sendTemperatures() {
     INFOLN(diff);
 
 
-#ifdef USE_SNMEA
     engineMonitor.sendTemperatureMessage(0,0,14,CToKelvin(0.1*temperature[EXHAUST_TEMP]));
     engineMonitor.sendTemperatureMessage(1,1,3,CToKelvin(0.1*temperature[ENGINEROOM_TEMP]));
     engineMonitor.sendTemperatureMessage(2,3,15,CToKelvin(0.1*temperature[ALTERNATOR_TEMP]));    
-#else
-    tN2kMsg N2kMsg;
-
-
-    // send extended temperatures
-    SetN2kTemperatureExt(N2kMsg, 1, 1, N2kts_ExhaustGasTemperature, CToKelvin(0.1*temperature[EXHAUST_TEMP]));
-    NMEA2000.SendMsg(N2kMsg);
-    SetN2kTemperatureExt(N2kMsg, 2, 2, N2kts_ExhaustGasTemperature, CToKelvin(0.1*temperature[ENGINEROOM_TEMP]));
-    NMEA2000.SendMsg(N2kMsg);
-    SetN2kTemperature(N2kMsg, 3, 3, N2kts_EngineRoomTemperature, CToKelvin(0.1*temperature[ALTERNATOR_TEMP]));
-    NMEA2000.SendMsg(N2kMsg);
-#endif
   }
 }
 
