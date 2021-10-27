@@ -14,7 +14,7 @@ bool SNMEA2000::open() {
     if ( CAN.begin(CAN_250KBPS, MCP_8MHz)==CAN_OK ) {
         delay(200);
         claimAddress();
-        Serial.println("Claimed Address Sent");
+        Serial.println(F("Claimed Address Sent"));
         return true;
     }
     return false;
@@ -32,23 +32,18 @@ void SNMEA2000::processMessages() {
         MessageHeader messageHeader(CAN.getCanId());
         switch (messageHeader.pgn) {
           case 59392L: /*ISO Acknowledgement*/
-            //Serial.print("<ack ");
-            //messageHeader.print(buf,len);
+            messageHeader.print("<ack",buf,len);
             break;
           case 59904L: /*ISO Request*/
-            //Serial.print("<req ");
-            //messageHeader.print(buf,len);
+            messageHeader.print("<req",buf,len);
             handleISORequest(&messageHeader, buf, len);
             break;
           case 60928L: /*ISO Address Claim*/
-            //Serial.print("<claim ");
-            //messageHeader.print(buf,len);
+            messageHeader.print("<claim",buf,len);
             handleISOAddressClaim(&messageHeader, buf, len);
             break;
-          //default:
-             //Serial.print("<unknown");
-             //messageHeader.print(buf,len);
-
+          default:
+             messageHeader.print("<unknown",buf,len);
         }
     }
 }
@@ -72,7 +67,7 @@ void SNMEA2000::claimAddress() {
 
 bool SNMEA2000::hasClaimedAddress() {
     if (addressClaimStarted+250 > millis() ) {
-        Serial.print("Address claimed as ");
+        Serial.print(F("Address claimed as "));
         Serial.println(deviceAddress);
         addressClaimStarted=0;
         setupRXFilter();
@@ -84,38 +79,29 @@ bool SNMEA2000::hasClaimedAddress() {
 
 void SNMEA2000::handleISORequest(MessageHeader *messageHeader, byte * buffer, int len) {
     if ( len < 3 || len > 8) {
-        Serial.println(" lenfail");
         return; // ISO requests are expected to be between 3 and 8 bytes.
     }
     if (messageHeader->destination == 0xff || messageHeader->destination != deviceAddress ) {
-        Serial.println(" notus");
         return;
     }
     if (!hasClaimedAddress()) {
-        Serial.println("Address not claimed.");
         return; // dont respond to queries until address is claimed.
     }
     unsigned long requestedPGN = (((unsigned long )buffer[2])<<16)|(((unsigned long )buffer[1])<<8)|(buffer[0]);
-    //Serial.print("ReqPGN:");Serial.println(requestedPGN);
     switch(requestedPGN) {
       case 60928L: /*ISO Address Claim*/  // Someone is asking others to claim their addresses
-        //Serial.print("other_claim>");
         sendIsoAddressClaim();
         break;
       case 126464L:
-        //Serial.print("pgns>");
         sendPGNLists(messageHeader);
         break;
       case 126996L: /* Product information */
-        //Serial.print("prod>");
         sendProductInformation(messageHeader);
         break;
       case 126998L: /* Configuration information */
-        //Serial.print("cond>");
         sendConfigurationInformation(messageHeader);
         break;
       default:
-        //Serial.print("sending nak>");
         sendIsoAcknowlegement(messageHeader, 1, 0xff);
     }
 
@@ -201,7 +187,6 @@ void SNMEA2000::outputVarString(const char * str,  uint8_t strLen) {
 
 void SNMEA2000::outputFixedString(const char * str, int maxLen, byte padding) {
     int ib = 0;
-    //Serial.print(str); 
     while( ib < maxLen ) {
         byte bs = str[ib++];
         outputByte(bs);
@@ -319,7 +304,7 @@ void SNMEA2000::setupRXFilter() {
 
 
         
-        Serial.println("Set Masks and Filters");
+        Serial.println(F("Set Masks and Filters"));
         CAN.init_Mask(0,1,0xf9ff00);
         CAN.init_Mask(1,1,0xf9ff00);
         CAN.init_Filt(0,1,0xE8FF00); // broadcasts
@@ -329,9 +314,9 @@ void SNMEA2000::setupRXFilter() {
 
 
 void SNMEA2000::clearRXFilter() {
-    Serial.println("Clear Masks");
-        CAN.init_Mask(0,1,0x0);
-        CAN.init_Mask(1,1,0x0);
+    Serial.println(F("Clear Masks"));
+    CAN.init_Mask(0,1,0x0);
+    CAN.init_Mask(1,1,0x0);
 }
 
 
@@ -348,7 +333,7 @@ void SNMEA2000::finishPacket() {
             sendMessage(packetMessageHeader, buffer, ob);
         }
     } else {
-        Serial.println("Error: Not a Single Packet");
+        Serial.println(F("Error: Not a Single Packet"));
     }
 }
 
@@ -369,7 +354,7 @@ void SNMEA2000::finishFastPacket() {
             sendMessage(packetMessageHeader, buffer, ob);
         }
     } else {
-        Serial.println("Error: Not a FastPacket");
+        Serial.println(F("Error: Not a FastPacket"));
     }
 }
 
@@ -382,7 +367,7 @@ void SNMEA2000::outputByte(byte opb) {
             buffer[ob++] = frame++;
         }
     } else {
-        Serial.println("Error: Frame > 8 bytes");
+        Serial.println(F("Error: Frame > 8 bytes"));
     }
 }
 
@@ -413,12 +398,7 @@ void SNMEA2000::sendIsoAcknowlegement(MessageHeader *requestMessageHeader, unsig
 }
 
 void SNMEA2000::sendMessage(MessageHeader *messageHeader, byte * message, int length) {
-    //Serial.print(freeMemory());
-    //Serial.print(",");
-    //messageHeader->print(message, length);
-    //byte res = 
     CAN.sendMsgBuf(messageHeader->id, 1, length, message);
-    //Serial.println(res);
 }
 
 

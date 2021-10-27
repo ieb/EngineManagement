@@ -130,7 +130,10 @@ class MessageHeader {
        // |-| Priority
 
        // PDU1 format    DDSS
-       void print(byte *buf, int len) {
+       void print(const char * label, byte *buf, int len) {
+#ifdef DEBUG_DISCOVERY
+             Serial.print(label);
+             Serial.print(":");
              Serial.print(pgn);
              Serial.print(",");
              Serial.print(source);
@@ -147,6 +150,7 @@ class MessageHeader {
                  Serial.print(buf[i],HEX);
              }
              Serial.println(";");
+#endif
        }
 
        unsigned long id;
