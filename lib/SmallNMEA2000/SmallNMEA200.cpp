@@ -399,6 +399,7 @@ void SNMEA2000::sendIsoAcknowlegement(MessageHeader *requestMessageHeader, unsig
 
 void SNMEA2000::sendMessage(MessageHeader *messageHeader, byte * message, int length) {
     CAN.sendMsgBuf(messageHeader->id, 1, length, message);
+    messageHeader->print(" out>",message,length);
 }
 
 
