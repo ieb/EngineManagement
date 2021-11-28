@@ -152,18 +152,22 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] Test NMEA2000 output
 [x] install
 [x] Test output on MFD, all working except Charge alarm sounds all the time and RPM sensor is unreliable.
-[ ] Fix RPM sensor, using schmitt trigger
+[x] Fix RPM sensor, using schmitt trigger
 [ ] Fix charge sensor, adjust resistors or disable.
+[ ] Adjust temperature sensor
+[ ] calibrate ADCs, or at least check they are correct.
 [ ] Test again.
 
 
 
 # Todo Status Mosfet board
 
+This has been put on hold as the relay board works well other than the charge and temperature alarms whcih are too sensitive. Same mosfets have been used for a high current remote switch and appear to produce almost zero heat dissipation.
+
 [x] Simulate everything in LTSpice
 [x] Layout PCB
 [ ] Mill prototype
-[ ] Order Silicon
+[x] Order Silicon
 [ ] Build prototype
 [ ] Test on/off
 [ ] Test other buttons and circuits, under load ideally.
@@ -190,9 +194,11 @@ Scope output for this setup on 5V is very clean
 
 TJA1050 runs on 5v with a divider on RX out to take Vrxh to 3.3v, may be easier than a MCP2562, although the output from a MCP2562 is not nearly as clean.
 
+This setup works. Output is very clean, however the mean voltage is sensitive to the 5V supply being exactly 5V.
+
 # Pi -> MCP2515 -> TA1050
 
 Same as 3v AVR 3v.
 Would also need a RTC, DS3231  with a LI charger TP4056
-
+Not done as was able to fit everything I wanted into a ESP32 running a http server which draws < 40mA when not transmitting on WiFi, see CanDiagnose project.
 

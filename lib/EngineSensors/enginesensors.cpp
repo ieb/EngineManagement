@@ -2,10 +2,17 @@
 #include <util/crc16.h>
 #include <EEPROM.h>
 
+#ifdef DEBUGON
+#define DEBUG(x) Serial.print(x)
+#define DEBUGLN(x) Serial.println(x)
+#define INFO(x)  Serial.print(x)
+#define INFOLN(x) Serial.println(x)
+#else
 #define DEBUG(x)
 #define DEBUGLN(x)
 #define INFO(x)
 #define INFOLN(x)
+#endif
 
 // ISR for frequency measurements.
 volatile int8_t pulseCount = 0;
@@ -111,8 +118,9 @@ void EngineSensors::readEngineRPM() {
     // no pulses, > 10MHz or < 10Hz, assume not running.
     engineRPM = 0;
   } else {
-      INFOLN(period);
      engineRPM =  (RPM_FACTOR*10000000.0)/(double)period;
+    INFO("Period ");INFOLN(period);
+    INFO("RPM ");INFOLN(engineRPM);
   }
 }
 
@@ -271,7 +279,7 @@ void EngineSensors::readCoolant() {
     DEBUG(coolantReading);
     DEBUG(",");
     coolantTemperature = interpolate(coolantReading,COOLANT_MIN_TEMPERATURE, COOLANT_MAX_TEMPERATURE, COOLANT_STEP, coolantTable, COOLANT_TABLE_LENGTH);
-    DEBUGLN(coolantTemperature);
+    DEBUG("CCC");DEBUGLN(coolantTemperature);
 }
 
 
