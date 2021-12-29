@@ -12,6 +12,12 @@
 #define FUEL_UPDATE_PERIOD 10000
 #define TEMPERATURE_UPDATE_PERIOD 4850
 
+#define ENGINE_INSTANCE 0
+#define SERVICE_BATTERY_INSTANCE 2
+#define ENGINE_BATTERY_INSTANCE 3
+#define FUEL_LEVEL_INSTANCE 0
+#define FUEL_TYPE 0   // diesel
+
 const SNMEA2000ProductInfo productInfomation PROGMEM={
                                        1300,                        // N2kVersion
                                        44,                         // Manufacturer's product code
@@ -52,22 +58,20 @@ EngineSensors sensors(DEFAULT_FLYWHEEL_READ_PERIOD,
 
 void sendRapidEngineData() {
   static unsigned long lastRapidEngineUpdate=0;
-  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastRapidEngineUpdate+RAPID_ENGINE_UPDATE_PERIOD ) {
     lastRapidEngineUpdate = now;
-    engineMonitor.sendRapidEngineDataMessage(sid++, sensors.getEngineRPM());
+    engineMonitor.sendRapidEngineDataMessage(ENGINE_INSTANCE, sensors.getEngineRPM());
   }
 }
 
 
 void sendEngineData() {
   static unsigned long lastEngineUpdate=0;
-  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastEngineUpdate+ENGINE_UPDATE_PERIOD ) {
     lastEngineUpdate = now;
-    engineMonitor.sendEngineDynamicParamMessage(sid++,
+    engineMonitor.sendEngineDynamicParamMessage(ENGINE_INSTANCE,
         sensors.getEngineSeconds(),
         sensors.getCoolantTemperatureK(),
         sensors.getAlternatorVoltage());
@@ -82,21 +86,19 @@ void sendVoltages() {
     lastVoltageUpdate = now;
     // because the engine monitor is not on all the time, the sid and instance ids of these messages has been shifted
     // to make space for sensors that are on all the time, and would be used by default
-    engineMonitor.sendDCBatterStatusMessage(sid, 2, sensors.getServiceBatteryVoltage(), sensors.getEngineRoomTemperatureK());
-    engineMonitor.sendDCBatterStatusMessage(sid, 3, sensors.getEngineBatteryVoltage(), sensors.getEngineRoomTemperatureK());
-    engineMonitor.sendDCBatterStatusMessage(sid, 4, sensors.getAlternatorVoltage(), sensors.getAlternatorTemperatureK());
+    engineMonitor.sendDCBatterStatusMessage(SERVICE_BATTERY_INSTANCE, sid, sensors.getServiceBatteryVoltage());
+    engineMonitor.sendDCBatterStatusMessage(ENGINE_BATTERY_INSTANCE, sid, sensors.getEngineBatteryVoltage());
     sid++;
   }
 }
 
 void sendFuel() {
   static unsigned long lastFuelUpdate=0;
-  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastFuelUpdate+FUEL_UPDATE_PERIOD ) {
     lastFuelUpdate = now;
-    engineMonitor.sendFluidLevelMessage(sid, 0, sensors.getFuelLevel(), sensors.getFuelCapacity());
-    sid++;
+    engineMonitor.sendFluidLevelMessage(FUEL_TYPE, FUEL_LEVEL_INSTANCE, sensors.getFuelLevel(), sensors.getFuelCapacity());
+
   }
 }
 
