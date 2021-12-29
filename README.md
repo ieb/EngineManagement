@@ -153,10 +153,11 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] install
 [x] Test output on MFD, all working except Charge alarm sounds all the time and RPM sensor is unreliable.
 [x] Fix RPM sensor, using schmitt trigger
-[ ] Fix charge sensor, adjust resistors or disable.
-[ ] Adjust temperature sensor
-[ ] calibrate ADCs, or at least check they are correct.
-[ ] Test again.
+[x] (disabled) Fix charge sensor, adjust resistors or disable.
+[x] Adjust temperature sensor
+[x] calibrate ADCs, or at least check they are correct.
+[x] Test again.
+[x] Install check RPM with strobe
 
 
 

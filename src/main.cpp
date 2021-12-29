@@ -52,20 +52,22 @@ EngineSensors sensors(DEFAULT_FLYWHEEL_READ_PERIOD,
 
 void sendRapidEngineData() {
   static unsigned long lastRapidEngineUpdate=0;
+  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastRapidEngineUpdate+RAPID_ENGINE_UPDATE_PERIOD ) {
     lastRapidEngineUpdate = now;
-    engineMonitor.sendRapidEngineDataMessage(0, sensors.getEngineRPM());
+    engineMonitor.sendRapidEngineDataMessage(sid++, sensors.getEngineRPM());
   }
 }
 
 
 void sendEngineData() {
   static unsigned long lastEngineUpdate=0;
+  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastEngineUpdate+ENGINE_UPDATE_PERIOD ) {
     lastEngineUpdate = now;
-    engineMonitor.sendEngineDynamicParamMessage(0,
+    engineMonitor.sendEngineDynamicParamMessage(sid++,
         sensors.getEngineSeconds(),
         sensors.getCoolantTemperatureK(),
         sensors.getAlternatorVoltage());
@@ -74,32 +76,40 @@ void sendEngineData() {
 
 void sendVoltages() {
   static unsigned long lastVoltageUpdate=0;
+  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastVoltageUpdate+VOLTAGE_UPDATE_PERIOD ) {
     lastVoltageUpdate = now;
-    engineMonitor.sendDCBatterStatusMessage(0, 0, sensors.getServiceBatteryVoltage(), sensors.getEngineRoomTemperatureK());
-    engineMonitor.sendDCBatterStatusMessage(1, 1, sensors.getEngineBatteryVoltage(), sensors.getEngineRoomTemperatureK());
-    engineMonitor.sendDCBatterStatusMessage(2, 3, sensors.getAlternatorVoltage(), sensors.getAlternatorTemperatureK());
+    // because the engine monitor is not on all the time, the sid and instance ids of these messages has been shifted
+    // to make space for sensors that are on all the time, and would be used by default
+    engineMonitor.sendDCBatterStatusMessage(sid, 2, sensors.getServiceBatteryVoltage(), sensors.getEngineRoomTemperatureK());
+    engineMonitor.sendDCBatterStatusMessage(sid, 3, sensors.getEngineBatteryVoltage(), sensors.getEngineRoomTemperatureK());
+    engineMonitor.sendDCBatterStatusMessage(sid, 4, sensors.getAlternatorVoltage(), sensors.getAlternatorTemperatureK());
+    sid++;
   }
 }
 
 void sendFuel() {
   static unsigned long lastFuelUpdate=0;
+  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastFuelUpdate+FUEL_UPDATE_PERIOD ) {
     lastFuelUpdate = now;
-    engineMonitor.sendFluidLevelMessage(0, 0, sensors.getFuelLevel(), sensors.getFuelCapacity());
+    engineMonitor.sendFluidLevelMessage(sid, 0, sensors.getFuelLevel(), sensors.getFuelCapacity());
+    sid++;
   }
 }
 
 void sendTemperatures() {
   static unsigned long lastTempUpdate=0;
+  static byte sid = 0;
   unsigned long now = millis();
   if ( now > lastTempUpdate+TEMPERATURE_UPDATE_PERIOD ) {
     lastTempUpdate = now;
-    engineMonitor.sendTemperatureMessage(0, 0, 14, sensors.getExhaustTemperatureK());
-    engineMonitor.sendTemperatureMessage(1, 1, 3, sensors.getEngineRoomTemperatureK());
-    engineMonitor.sendTemperatureMessage(2, 3, 15, sensors.getAlternatorTemperatureK());
+    engineMonitor.sendTemperatureMessage(sid, 0, 14, sensors.getExhaustTemperatureK());
+    engineMonitor.sendTemperatureMessage(sid, 1, 3, sensors.getEngineRoomTemperatureK());
+    engineMonitor.sendTemperatureMessage(sid, 2, 15, sensors.getAlternatorTemperatureK());
+    sid++;
   }
 }
 
