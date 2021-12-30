@@ -341,9 +341,13 @@ void SNMEA2000::finishPacket() {
 void SNMEA2000::startFastPacket(MessageHeader *messageHeader, int length) {
     packetMessageHeader = messageHeader;
     fastPacket = true;
+    fastPacketSequence++;
+    if (fastPacketSequence > 7 ) {
+        fastPacketSequence = 0;
+    }
     frame = 0;
     ob = 0;
-    buffer[ob++] = frame++;
+    buffer[ob++] =  (fastPacketSequence << 5) | frame++;
     buffer[ob++] = length;
 } 
 
@@ -364,14 +368,14 @@ void SNMEA2000::outputByte(byte opb) {
         if( fastPacket && ob == 8) {
             sendMessage(packetMessageHeader, &buffer[0], 8);
             ob = 0;
-            buffer[ob++] = frame++;
+            buffer[ob++] = (fastPacketSequence << 5) | frame++;
         }
     } else {
         Serial.println(F("Error: Frame > 8 bytes"));
     }
 }
 
-
+/*
 void SNMEA2000::sendFastPacket(MessageHeader *messageHeader, byte *message, int len, bool progmem) {
     startFastPacket(messageHeader, len);
     int ib = 0;
@@ -384,6 +388,7 @@ void SNMEA2000::sendFastPacket(MessageHeader *messageHeader, byte *message, int 
     }
     finishFastPacket();
 }
+*/
 
 void SNMEA2000::sendIsoAcknowlegement(MessageHeader *requestMessageHeader, unsigned char control, unsigned char groupFunction) {
     MessageHeader messageHeader(59392L, 6, deviceAddress, requestMessageHeader->source);
@@ -401,6 +406,7 @@ void SNMEA2000::sendMessage(MessageHeader *messageHeader, byte * message, int le
     CAN.sendMsgBuf(messageHeader->id, 1, length, message);
     messageHeader->print(" out>",message,length);
 }
+
 
 
 void EngineMonitor::sendRapidEngineDataMessage(

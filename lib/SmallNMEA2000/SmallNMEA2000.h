@@ -182,7 +182,7 @@ class SNMEA2000 {
         bool open();
         void processMessages();
         void sendMessage(MessageHeader *messageHeader, byte *message, int len);
-        void sendFastPacket(MessageHeader *messageHeader, byte *message, int len, bool progmem=false);
+        //void sendFastPacket(MessageHeader *messageHeader, byte *message, int len, bool progmem=false);
         unsigned char getAddress() { return deviceAddress; };
         void startPacket(MessageHeader *messageHeader);
         void finishPacket();
@@ -235,6 +235,7 @@ class SNMEA2000 {
         //output buffer and frames
         MessageHeader *packetMessageHeader;
         bool fastPacket;
+        uint8_t fastPacketSequence;
         byte buffer[8];
         uint8_t frame;
         uint8_t ob;
