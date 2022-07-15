@@ -51,7 +51,8 @@
 // Coolant Sensor calibration.
 #define ADC_COOLANT_SENSOR 0
 #define ADC_COOLANT_SUPPLY 7
-#define COOLANT_SUPPLY_ADC_12V 780 // calibrated
+#define COOLANT_SUPPLY_ADC_12V 780 // calibrated   12V supply Through a 47/100K divider 
+                                   // 12*47/147=3.8367, calibrated at 3.8085 = ADC reading of 1024*3.8085/5=780
 #define MIN_SUPPLY_VOLTAGE 261
 
 
@@ -99,8 +100,8 @@ class EngineSensors {
                      coolantReadPeriod{coolantReadPeriod},
                      voltageReadPeriod{voltageReadPeriod},
                      NTCReadPeriod{NTCReadPeriod} {};
+       bool begin();
        void read();
-       void init();
        void saveEngineHours();
        double getEngineRPM() { return engineRPM; };
        double getEngineSeconds() {  return 15L*engineHours.engineHoursPeriods; };

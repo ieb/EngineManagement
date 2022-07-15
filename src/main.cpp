@@ -1,10 +1,8 @@
 
 #include <Arduino.h>
-
-#define USE_MCP_CAN_CLOCK_SET 8
-#define SNMEA_SPI_CS_PIN 10
 #include "enginesensors.h"
 #include "SmallNMEA2000.h"
+
 
 #define RAPID_ENGINE_UPDATE_PERIOD 500
 #define ENGINE_UPDATE_PERIOD 1000
@@ -47,8 +45,23 @@ const unsigned long rxPGN[] PROGMEM = {
   SNMEA200_DEFAULT_RX_PGN
 };
 
+SNMEA2000DeviceInfo devInfo = SNMEA2000DeviceInfo(
+  222,   // device serial number
+  140,  // Engine
+  50 // Propulsion
+);
 
-EngineMonitor engineMonitor(24, 3, &productInfomation, &configInfo, &txPGN[0], &rxPGN[0]);
+
+#define DEVICE_ADDRESS 24
+#define SNMEA_SPI_CS_PIN 10
+
+EngineMonitor engineMonitor = EngineMonitor(DEVICE_ADDRESS,
+  &devInfo,
+  &productInfomation, 
+  &configInfo, 
+  &txPGN[0], 
+  &rxPGN[0],
+  SNMEA_SPI_CS_PIN);
 
 EngineSensors sensors(DEFAULT_FLYWHEEL_READ_PERIOD,
   DEFAULT_FUEL_READ_PERIOD,
@@ -117,12 +130,18 @@ void sendTemperatures() {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println(F("Luna monitor start"));
-  sensors.init();
+  Serial.println(F("Luna engine monitor start"));
+  while(!sensors.begin() ) {
+    Serial.println(F("Failed to start Engine Sensors, retry in 5s"));
+    delay(5000);
+  }
   Serial.println(F("Opening CAN"));
-  engineMonitor.open();
-  Serial.println(F("Opened"));
-  Serial.println(F("Running..."));
+  while (!engineMonitor.open() ) {
+     Serial.println(F("Failed to start NMEA2000, retry in 5s"));
+    delay(5000);
+  }
+  Serial.println(F("Opened, MCP2515 Operational"));
+  Serial.println(F("Running..."));;
 }
 
 void loop() {

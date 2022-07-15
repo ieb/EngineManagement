@@ -30,11 +30,12 @@ void flywheelPuseHandler() {
   }
 }
 
-void EngineSensors::init() {
+bool EngineSensors::begin() {
   loadEngineHours();
   pinMode(PINS_FLYWHEEL, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PINS_FLYWHEEL), flywheelPuseHandler, FALLING);
   DEBUG(F("ISR enabled"));
+  return true;
 }
 
 void EngineSensors::read() {
@@ -213,7 +214,7 @@ R top	1000
 Vsupply	12				
 					
 					
-					
+12*1076/(1076+1000) = 6.2196531792					
 					
 C	R	V	ADC	Current (mA)	Power (mW)
 0	1743	7.625227853	1562	4.374772147	33.35863443
@@ -230,7 +231,6 @@ C	R	V	ADC	Current (mA)	Power (mW)
 110	29	0.3381924198	69	11.66180758	3.943934925
 120	22	0.2583170254	53	11.74168297	3.03307662*/
 
-// ADC readings at 8V supply voltage, 120 to 0 in steps of 10C
 
 
 const int16_t coolantTable[] PROGMEM= {
