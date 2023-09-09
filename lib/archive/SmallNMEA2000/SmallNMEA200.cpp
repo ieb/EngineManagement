@@ -83,7 +83,7 @@ void SNMEA2000::claimAddress() {
 }
 
 bool SNMEA2000::hasClaimedAddress() {
-    if (addressClaimStarted+250 > millis() ) {
+    if (millis() - addressClaimStarted > 250  ) {
         Serial.print(F("Address claimed as "));
         Serial.println(deviceAddress);
         rxFiltersSet = false;

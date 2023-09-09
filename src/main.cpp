@@ -11,8 +11,8 @@
 #define TEMPERATURE_UPDATE_PERIOD 4850
 
 #define ENGINE_INSTANCE 0
-#define SERVICE_BATTERY_INSTANCE 2
-#define ENGINE_BATTERY_INSTANCE 3
+#define ENGINE_BATTERY_INSTANCE 0
+// Now using a dedicated shunt for service battery #define SERVICE_BATTERY_INSTANCE 2
 #define FUEL_LEVEL_INSTANCE 0
 #define FUEL_TYPE 0   // diesel
 
@@ -20,7 +20,7 @@ const SNMEA2000ProductInfo productInfomation PROGMEM={
                                        1300,                        // N2kVersion
                                        44,                         // Manufacturer's product code
                                        "EMS",    // Manufacturer's Model ID
-                                       "1.2.3.4 (2017-06-11)",     // Manufacturer's Software version code
+                                       "1.2.3.4 (2023-05-16)",     // Manufacturer's Software version code
                                        "5.6.7.8 (2017-06-11)",      // Manufacturer's Model version
                                        "0000001",                  // Manufacturer's Model serial code
                                        0,                           // SertificationLevel
@@ -72,7 +72,7 @@ EngineSensors sensors(DEFAULT_FLYWHEEL_READ_PERIOD,
 void sendRapidEngineData() {
   static unsigned long lastRapidEngineUpdate=0;
   unsigned long now = millis();
-  if ( now > lastRapidEngineUpdate+RAPID_ENGINE_UPDATE_PERIOD ) {
+  if ( now-lastRapidEngineUpdate > RAPID_ENGINE_UPDATE_PERIOD ) {
     lastRapidEngineUpdate = now;
     engineMonitor.sendRapidEngineDataMessage(ENGINE_INSTANCE, sensors.getEngineRPM());
   }
@@ -82,7 +82,7 @@ void sendRapidEngineData() {
 void sendEngineData() {
   static unsigned long lastEngineUpdate=0;
   unsigned long now = millis();
-  if ( now > lastEngineUpdate+ENGINE_UPDATE_PERIOD ) {
+  if ( now-lastEngineUpdate > ENGINE_UPDATE_PERIOD ) {
     lastEngineUpdate = now;
     engineMonitor.sendEngineDynamicParamMessage(ENGINE_INSTANCE,
         sensors.getEngineSeconds(),
@@ -95,11 +95,11 @@ void sendVoltages() {
   static unsigned long lastVoltageUpdate=0;
   static byte sid = 0;
   unsigned long now = millis();
-  if ( now > lastVoltageUpdate+VOLTAGE_UPDATE_PERIOD ) {
+  if ( now-lastVoltageUpdate > VOLTAGE_UPDATE_PERIOD ) {
     lastVoltageUpdate = now;
     // because the engine monitor is not on all the time, the sid and instance ids of these messages has been shifted
     // to make space for sensors that are on all the time, and would be used by default
-    engineMonitor.sendDCBatterStatusMessage(SERVICE_BATTERY_INSTANCE, sid, sensors.getServiceBatteryVoltage());
+    // engineMonitor.sendDCBatterStatusMessage(SERVICE_BATTERY_INSTANCE, sid, sensors.getServiceBatteryVoltage());
     engineMonitor.sendDCBatterStatusMessage(ENGINE_BATTERY_INSTANCE, sid, sensors.getEngineBatteryVoltage());
     sid++;
   }
@@ -108,7 +108,7 @@ void sendVoltages() {
 void sendFuel() {
   static unsigned long lastFuelUpdate=0;
   unsigned long now = millis();
-  if ( now > lastFuelUpdate+FUEL_UPDATE_PERIOD ) {
+  if ( now-lastFuelUpdate > FUEL_UPDATE_PERIOD ) {
     lastFuelUpdate = now;
     engineMonitor.sendFluidLevelMessage(FUEL_TYPE, FUEL_LEVEL_INSTANCE, sensors.getFuelLevel(), sensors.getFuelCapacity());
 
@@ -119,7 +119,7 @@ void sendTemperatures() {
   static unsigned long lastTempUpdate=0;
   static byte sid = 0;
   unsigned long now = millis();
-  if ( now > lastTempUpdate+TEMPERATURE_UPDATE_PERIOD ) {
+  if ( now-lastTempUpdate > TEMPERATURE_UPDATE_PERIOD ) {
     lastTempUpdate = now;
     engineMonitor.sendTemperatureMessage(sid, 0, 14, sensors.getExhaustTemperatureK());
     engineMonitor.sendTemperatureMessage(sid, 1, 3, sensors.getEngineRoomTemperatureK());

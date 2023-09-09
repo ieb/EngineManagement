@@ -40,23 +40,23 @@ bool EngineSensors::begin() {
 
 void EngineSensors::read() {
   unsigned long now = millis();
-  if ( now > lastFlywheelReadTime+flywheelReadPeriod) {
+  if ( now-lastFlywheelReadTime > flywheelReadPeriod) {
     lastFlywheelReadTime = now;
     readEngineRPM();
   }
-  if ( now > lastFuelReadTime+fuelReadPeriod ) {
+  if ( now-lastFuelReadTime > fuelReadPeriod ) {
     lastFuelReadTime = now;
     readFuelLevel();
   }
-  if ( now > lastCoolantReadTime+coolantReadPeriod ) {
+  if ( now -lastCoolantReadTime > coolantReadPeriod ) {
     lastCoolantReadTime = now;
     readCoolant();
   }
-  if ( now > lastVotageRead+voltageReadPeriod ) {
+  if ( now-lastVotageRead > voltageReadPeriod ) {
     lastVotageRead = now;
     readVoltages();
   }
-  if ( now > lastNTCRead+NTCReadPeriod ) {
+  if ( now-lastNTCRead > NTCReadPeriod ) {
     lastNTCRead = now;
     readNTC();
   }
