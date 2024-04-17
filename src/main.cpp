@@ -6,12 +6,14 @@
 
 #define RAPID_ENGINE_UPDATE_PERIOD 500
 #define ENGINE_UPDATE_PERIOD 1000
-#define VOLTAGE_UPDATE_PERIOD 9996
-#define FUEL_UPDATE_PERIOD 10000
+#define VOLTAGE_UPDATE_PERIOD 999
+#define FUEL_UPDATE_PERIOD 4900
 #define TEMPERATURE_UPDATE_PERIOD 4850
 
 #define ENGINE_INSTANCE 0
 #define ENGINE_BATTERY_INSTANCE 0
+// treating the alternator as a battery its possible to monitor temperature.
+#define ALTERNATOR_BATTERY_INSTANCE 2
 // Now using a dedicated shunt for service battery #define SERVICE_BATTERY_INSTANCE 2
 #define FUEL_LEVEL_INSTANCE 0
 #define FUEL_TYPE 0   // diesel
@@ -87,9 +89,15 @@ void sendEngineData() {
     engineMonitor.sendEngineDynamicParamMessage(ENGINE_INSTANCE,
         sensors.getEngineSeconds(),
         sensors.getCoolantTemperatureK(),
-        sensors.getAlternatorVoltage());
+        sensors.getAlternatorVoltage(),
+        0, // status1
+        0, // status2
+        SNMEA2000::n2kDoubleNA, // engineOilPressure
+        sensors.getAlternatorTemperatureK() // alterator temperature as nengineOil temperature
+        );
   }
 }
+
 
 void sendVoltages() {
   static unsigned long lastVoltageUpdate=0;
@@ -101,6 +109,10 @@ void sendVoltages() {
     // to make space for sensors that are on all the time, and would be used by default
     // engineMonitor.sendDCBatterStatusMessage(SERVICE_BATTERY_INSTANCE, sid, sensors.getServiceBatteryVoltage());
     engineMonitor.sendDCBatterStatusMessage(ENGINE_BATTERY_INSTANCE, sid, sensors.getEngineBatteryVoltage());
+    engineMonitor.sendDCBatterStatusMessage(ALTERNATOR_BATTERY_INSTANCE, sid, 
+        sensors.getAlternatorVoltage(),
+        sensors.getAlternatorTemperatureK()
+        );
     sid++;
   }
 }

@@ -6,71 +6,87 @@ In July 2021 my boat was hit by lightning. The Volvo Penta D2-40 MDI unit that m
 
 # Main control board
 
+Update 20240417: In service, no issues after 3 years.
+
 (see pcb/EngineManagementSimpleWithRelays.sch )
 
 This project is based on the standard wiring for the core engine which is a Perkins 100. In that form the engine is controlled by switches, relays and a few flyback diodes. The only part of the original engine control that survived the strike was the Volvo Penta buttons, so those are used by a control board with pnp transistors driving relays triggered by the original buttons pulling the base of the pnp to ground. PushOn/PushOff is provided by a latching relay unit based on a LED control chip that draws a few uA when off. The control circuit draws 0.5A max and is protected by a 5A fuse and 600W TVS which will blow the fuse in the event of a voltage surge.
 
-The main relays for Start, Stop, Glow and aux are all standard iso 40A automotive relays, each curcuit fused with a suitable fuse. 
+The main relays for Start, Stop, Glow and aux are all standard iso 40A automotive relays, each circuit fused with a suitable fuse. 
 
-There are basic alarms for oil pressure, charge and temperature with the temperature alarm using a differntial op amp with high gain adjusted to turn on a pnp at a set temperature. These all drive a buzzer with LEDs to indicate the alarm. 
+There are basic alarms for oil pressure, charge and temperature with the temperature alarm using a differential op amp with high gain adjusted to turn on a pnp at a set temperature. These all drive a buzzer with LEDs to indicate the alarm. 
 
-A standard Thachometer sensing from the alternator W+ provides rev and engine hours. These are almost disposable being 30 GBP on eBay from many sources, all 85mm same as the Volvo Penta Tachometer.
+A standard Tachometer sensing from the alternator W+ provides rev and engine hours. These are almost disposable being 30 GBP on eBay from many sources, all 85mm same as the Volvo Penta Tachometer.
 
 ## Mosfet alternative
 
-Although the original MDI failed due to the MOSFETs going short circuit, and in this respect relays may be more robust, it should be possble to protect MOSFETs or at least fail safe.
+Update 20240417: The PCB was prototyped, but never put into service since the relay based control board has proved 100% reliable and in service for 3 years. This section is for reference.
 
-A 1.5KW TVS (eg SMCJ14A) with a 14.0V revers standoff, 15.6V minimum breakdown will conduct 5A@16V, 10A@18V and 40A@20V, which makes it viable as protection for excessive voltages upto 40A current, aiming to blow a fuse at above those voltages. Each mosfet needs its own TVS + suitably sized fuse or breaker. In the event of a stike or surge the TVS will short and blow the fuse before damage is done even if the MOSFET is shorted. It wont work for currents greater than 40A without exceeding the max Vds voltage of the MOSFET below.
 
-A SI7137DP-T1-GE3 has an on resitance of 0.0016 Ohms and will dispate < 640mW for 20A when fully on. It, unfortunately has a Max Vds of 20V and Vgs of 12v so needs protection, but provided its protected represents a robust solution as a high level switch. 
+Although the original MDI failed due to the MOSFETs going short circuit, and in this respect relays may be more robust, it should be possible to protect MOSFETs or at least fail safe.
 
-In the relay board on/off was provided by a eBay relay board which used a LED controler. To keep the number of daughter boards to a minimum and save space this is replaced by a MAX15054 on-off controller driving a N-Channel mosfet which when turned on draws the gate of one of the SI7137's to near zero turning it fully on. The same N-Channel mosfet enables P-Channel mosfets connected to the gates of other SI7137s. When the VP buttons are pressed the gates of these mosfets are dragged down to 0v turning them on, and since the N-Channel mosfet is conducting the gate of the respective SI7137 is also dragged to 0v switching that mosfet on. All P-Channel gates are pulled to +ve, and all N-Channel gates are pulled to 0v. The SI7137 has a max source gate voltage of 12v and so a 10v zener with forward diode ensures tht nevery gets over 11.5v. 
+A 1.5KW TVS (eg SMCJ14A) with a 14.0V revers standoff, 15.6V minimum breakdown will conduct 5A@16V, 10A@18V and 40A@20V, which makes it viable as protection for excessive voltages upto 40A current, aiming to blow a fuse at above those voltages. Each mosfet needs its own TVS + suitably sized fuse or breaker. In the event of a strike or surge the TVS will short and blow the fuse before damage is done even if the MOSFET is shorted. It wont work for currents greater than 40A without exceeding the max Vds voltage of the MOSFET below.
 
-Simulations indicate that the power dissipation in the SI7137 at 20A is 2.5W, so a pair are used for the glow plugs. At 8A for the start and stop solenoids power disipation is closer ot 500mW. Board cooling pads are used, although it migh be necessary to add chip heat sinks.
+A SI7137DP-T1-GE3 has an on resistance of 0.0016 Ohms and will dissipate < 640mW for 20A when fully on. It, unfortunately has a Max Vds of 20V and Vgs of 12v so needs protection, but provided its protected represents a robust solution as a high level switch. 
+
+In the relay board on/off was provided by a eBay relay board which used a LED controller. To keep the number of daughter boards to a minimum and save space this is replaced by a MAX15054 on-off controller driving a N-Channel mosfet which when turned on draws the gate of one of the SI7137's to near zero turning it fully on. The same N-Channel mosfet enables P-Channel mosfets connected to the gates of other SI7137s. When the VP buttons are pressed the gates of these mosfets are dragged down to 0v turning them on, and since the N-Channel mosfet is conducting the gate of the respective SI7137 is also dragged to 0v switching that mosfet on. All P-Channel gates are pulled to +ve, and all N-Channel gates are pulled to 0v. The SI7137 has a max source gate voltage of 12v and so a 10v zener with forward diode ensures that never gets over 11.5v. 
+
+Simulations indicate that the power dissipation in the SI7137 at 20A is 2.5W, so a pair are used for the glow plugs. At 8A for the start and stop solenoids power dissipation is closer to 500mW. Board cooling pads are used, although it might be necessary to add chip heat sinks.
 
 Since the SI7137 are 1/10th the size of the relays, the switching circuit and NMEA2000 interface controller will all fit onto a single 10cm x 15cm board (which is the size I have in stock).
 
-All of the silicon components were available at Farnell except the SI7137's which were ordered from Mouser, airmailed from California. For some reaon RS in the UK had no stock of any mosfets.
+All of the silicon components were available at Farnell except the SI7137's which were ordered from Mouser, airmailed from California. For some reason RS in the UK had no stock of any mosfets.
 
-see pcb/EngineManagementWithMosfets.sch which includes a subsheet of the NMEA interface. There are LTSpice simulations in pcb/simulations/ of the mosfet layout confirming transient behaviour, currents and power disapation.
+see pcb/EngineManagementWithMosfets.sch which includes a sub-sheet of the NMEA interface. There are LTSpice simulations in pcb/simulations/ of the mosfet layout confirming transient behavior, currents and power dissipation.
 
-Since its likely that when there is a voltage spike something on the board will blow, assuming this board works, I'll probably make a batch and keep a few spares onborad the boat.
+Since its likely that when there is a voltage spike something on the board will blow, assuming this board works, I'll probably make a batch and keep a few spares onboard the boat.
 
 
 # NMEA2000 Interface
 
+Update 20240417: In service, minor issues after 3 years, mostly surrounding message frequency and how to some parameters to display on standard instruments.
+
 
 (see pcb/EngineManagement.sch)
 
-The standard MDI talks J1939 which is the Diesel engne CAN standard protocol. Normally this communicates with other Volvo Penta instruments, but in my case this was only the Tachometer. The J1939 Volvo Penta Tachomter did not survive the strike. The CAN bus interface was destroyed, even though there was an attempt to protect if from surges. At over 500 GBP to replace, I decided to stick with the non J1939 tachometer from eBay. For details on how to drive J1939 see the main_deprecated.cpp file. Volvo Penta service technicians probably query the MDI for fault codes, but for owners there is limited benefit where the only unit is a tachometer or basic instruments.
+The standard MDI talks J1939 which is the Diesel engine CAN standard protocol. Normally this communicates with other Volvo Penta instruments, but in my case this was only the Tachometer. The J1939 Volvo Penta Tachometer did not survive the strike. The CAN bus interface was destroyed, even though there was an attempt to protect if from surges. At over 500 GBP to replace, I decided to stick with the non J1939 tachometer from eBay. For details on how to drive J1939 see the main_deprecated.cpp file. Volvo Penta service technicians probably query the MDI for fault codes, but for owners there is limited benefit where the only unit is a tachometer or basic instruments.
 
-Once I discovered the VP Tachometer was not repairable, a seperate mechanical diesel to NMEA2000 board was designed and built arround an Arduino Pro Mini (Atmel 328p MCU), MCP2515 CAN controller board and some passive components. There is just enough space on 328p to hold the code and run the controller and the data collected and emitted can be displayed on any NMEA2000 instrument (eg Raymarine e7 MFD).
+Once I discovered the VP Tachometer was not repairable, a separate mechanical diesel to NMEA2000 board was designed and built around an Arduino Pro Mini (Atmel 328p MCU), MCP2515 CAN controller board and some passive components. There is just enough space on 328p to hold the code and run the controller and the data collected and emitted can be displayed on any NMEA2000 instrument (eg Raymarine e7 MFD).
 
 Component cost of the boards is probably less than 30 GBP, hence spares boards can be carried and in the worst case the engine can be controlled manually.
 
-Replacing the blown VP parts with OEM parts would have been 1500 GBP with a firther 1500 GBP requred for the spare set, safe in the knowledge that a EM pulse from a near strike would result in precisely the same failure and risk of engine fire.
+Replacing the blown VP parts with OEM parts would have been 1500 GBP with a further 1500 GBP required for the spare set, safe in the knowledge that a EM pulse from a near strike would result in precisely the same failure and risk of engine fire.
 
+## NMEA2000 Messages
 
+A D-2/40 is not exactly performance. Its not going to rev up quickly and so periods of 100ms are not really necessary for rapid engine. Same with temperatures which are really not going to change that fast. 5s is plenty fast enough.  10s is too long and most instruments treat this as no data sent.
+
+* pgn 127488 rapid engine, 500ms
+* pgn 127489 dynamic engine 1s  oil temperature == alternator temperature.
+* pgn 127505 tank level 5s, instance 0 fuel type 0 diesel 
+* pgn 130316 temperatures 5s,  instance/source 0/14=Exhaust, 1/3=EngineRoom, 2/15=Alternator.
+* pgn 127508L battery voltage 1s, instance 0=engine battery, voltage only. instance 2=Alternator, voltage and temperature
+
+The main battery as its now LiFePO4 with a serial to BLE module providing very detailed information. A CAN interface to this could be implemented, but the standard android app gives more than enough information and is lower power.  The original battery sensor mechanism didnt work well due to slight differences in -ve potential at the battery terminals. Hence the N2K interface only monitors Engine Battery and Alternator voltages. With a LiFeP04 battery, alternator temperature has become more important. Alternator load is controld via a Sterling A2B 120A converter which actively monitors and protect the alternator from excessive load.
 
 
 # Sensors
 
 
+The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle, however the signal is noisy and so it needs to be conditioned. A Schmidt trigger using an OpAmp set up positive feedback to reduce hysteresis. The positive input uses a RC network acting as a low pass filter reducing the sensitivity as the rpm rises, eliminating high frequencies ( > 10KHz). On the negative a RC network smooths the input voltage to find the mean allowing automatic offset compensation. The time period constant of the -ve input is >> than the +ve.  The inputs are via 22K resistors with the voltage measured over 100K. There are 2 chopper diodes to limit the input voltage to no more than 1V.
 
-The standard  VP flywheel pickup produces 415Hz 20V pk2pk puses with sharp edges at idle, however the signal is noisy and so it needs to be conditioned. A Schmitt trigger using an OpAmp set up positive feedback to enduce histeresis. The positive input uses a RC network acting as a low pass filter reducing the sensitivity as the rpm rises, eliminating high frequencies ( > 10KHz). On the negative a RC network smooths the input voltage to find the mean allowing automatic offset compensation. The time period constant of the -ve input is >> than the +ve.  The inputs are via 22K resistors with the voltage measured over 100K. There are 2 chopper diodes to limit the input voltage to no more than 1V.
-
-Using a 358 opamp with 5V supply the square wave out is 3.7V high and 0.7v low, which is just enough (3.5v being logic high), 1.5 below Vcc isnt great for an OpAmp, however 3v is high on an Arduino.
+Using a 358 opamp with 5V supply the square wave out is 3.7V high and 0.7v low, which is just enough (3.5v being logic high), 1.5 below Vcc isn't great for an OpAmp, however 3v is high on an Arduino.
 
 The frequency is measured by timing 10 pulses using micros().
 
-The previous attempt without a Schmitt Trigger failed to work reliably due to noise.
+The previous attempt without a Schmidt Trigger failed to work reliably due to noise.
 
 
-The standard VP oil pressure switch is a simple switch that closes when the oil pressure drops below a threashold.
+The standard VP oil pressure switch is a simple switch that closes when the oil pressure drops below a threshold.
 
 The standard VP coolant temperature sensor is identical to almost every other coolant sensor, with about 1743R at 0C and 22R at 120C. When about 33R (105C adjustable) is measured the alarm is triggered.
 
-The charge alarm uses the voltage across the resistor supplying current into the alternator excitation coil, alanagous to the charge light in cars long before there were computers.
+The charge alarm uses the voltage across the resistor supplying current into the alternator excitation coil, analogous to the charge light in cars long before there were computers.
 
 The NMEA2000 interface board also measures fule level (0R-190R), battery voltage, alternator voltage, and 3 NCT inputs. Inputs are protected with capacitors and 100K resistors to limit current.
 
@@ -97,9 +113,10 @@ Code is all in main.cpp rather than a classes since there is little to it and I 
 	https://github.com/ttlappalainen/CAN_BUS_Shield.git
 
 however there are some patches required, see src/*.patch. 
-src/CAN_BUS_Shield.patch. The SPI clk was heavilly distorted at 8MHz with a Pro Mini so I dropped the SPI to 1MHz to get a clean clk square wave. 
+src/CAN_BUS_Shield.patch. The SPI clk was heavily distorted at 8MHz with a Pro Mini so I dropped the SPI to 1MHz to get a clean clk square wave. 
 
-src/NMEA2000-library.patch The memory savings (see NMEA2000_CompilerDefns.h) which are required to run on a 382p dont complie without this patch. Additionally there I needed feedback on serial of failed packets without enabling all packet output.
+
+src/NMEA2000-library.patch The memory savings (see NMEA2000_CompilerDefns.h) which are required to run on a 382p dont compile without this patch. Additionally there I needed feedback on serial of failed packets without enabling all packet output.
 
 Both patches must be applied if pulling fresh dependencies. 
 
@@ -114,19 +131,22 @@ If debugging of the sensors is enabled, then NMEA2000 output may have to be disa
 
 ## Update on memory.
 
-Memory usage has proved a problem. The NMEA2000 library was designed for chips with more memory than a Pro mini and altough it will run, it runs out of stack and heap when dealing with ISO Reqeusts, causing the cpu to lock up or crash. It is possble to greatly reduce memory usage by limiting buffer sizes but this truncates the responses ot the ISO requests. I think the underlying problem is that the NMEA2000 library uses temporary buffers allow it to use interrupts and to support TP packets.
+Memory usage has proved a problem. The NMEA2000 library was designed for chips with more memory than a Pro mini and although it will run, it runs out of stack and heap when dealing with ISO Reqeusts, causing the cpu to lock up or crash. It is possible to greatly reduce memory usage by limiting buffer sizes but this truncates the responses ot the ISO requests. I think the underlying problem is that the NMEA2000 library uses temporary buffers allow it to use interrupts and to support TP packets.
 
-So, the code is now switched to a smaller SNMEA2000 library. This only uses an 8 byte buffer for sending and is written to load that buffer, sending when full. It supports standard packets and fast packet messages. It doesnt support interrupts and is a lot simpler. 
+So, the code is now switched to a smaller SNMEA2000 library. This only uses an 8 byte buffer for sending and is written to load that buffer, sending when full. It supports standard packets and fast packet messages. It doesn't support interrupts and is a lot simpler. 
 
 Building with debug enabled all in ram gives
 RAM:   [===       ]  32.2% (used 659 bytes from 2048 bytes)
 Flash: [====      ]  37.4% (used 11492 bytes from 30720 bytes)
 
-Initial tests indicate 1292 bytes ram available at all times when runing, compared to the < 60 bytes reported with the smallest viable NMEA2000 configuration. Most of the implementation is informed by the NMEA2000 code and functionality for each use is by extension only. To reduce the work load on a polling only interface to the MCP2515 message filters are implemented on recieve. It only supports a MCP2515 over SPI and will only run on an AVR based chip as it assumes little endian.
+Initial tests indicate 1292 bytes ram available at all times when running, compared to the < 60 bytes reported with the smallest viable NMEA2000 configuration. Most of the implementation is informed by the NMEA2000 code and functionality for each use is by extension only. To reduce the work load on a polling only interface to the MCP2515 message filters are implemented on receive. It only supports a MCP2515 over SPI and will only run on an AVR based chip as it assumes little endian.
 
-The code has, or is being verified talking to a ESP32 + MCP2562 running the NMEA2000 device analyser.
+The code has, or is being verified talking to a ESP32 + MCP2562 running the NMEA2000 device analyzer.
 
+# Changes
 
+* 20240417  Reduced the periods for battery and fuel to 5s from 10s as N2K instruments were showing -.- periodically.
+* 20240417  Output Alternator temperature to Engine Oil Temp and a dedicated "battery" (no 2) for display. Oddly no standard PGN for an DC alternator available.
 
 
 # Todo/Status Relay Board
@@ -134,7 +154,7 @@ The code has, or is being verified talking to a ESP32 + MCP2562 running the NMEA
 [x] Build prototype PCB and populate.
 [x] Test on/off sequence.
 [x] Test 20x4 I2C display.
-[x] Test port extender. - discovered Can board backpowers 5vswitched line, added blocking diode.
+[x] Test port extender. - discovered Can board back powers 5v switched line, added blocking diode.
 [x] Connect 8 way relay board and test.
 [x] Verify CAN board working.
 [ ] Connect test harness sensors and test.
@@ -152,12 +172,14 @@ able to repair. Google for the numbers turns up no chips, and none of the other 
 [x] Test NMEA2000 output
 [x] install
 [x] Test output on MFD, all working except Charge alarm sounds all the time and RPM sensor is unreliable.
-[x] Fix RPM sensor, using schmitt trigger
+[x] Fix RPM sensor, using Schmidt trigger
 [x] (disabled) Fix charge sensor, adjust resistors or disable.
 [x] Adjust temperature sensor
 [x] calibrate ADCs, or at least check they are correct.
 [x] Test again.
 [x] Install check RPM with strobe
+[x] Fix fuel and voltage periods, 10s too long for N2K instruments, dropped to 5s.
+[x] Output alternator temperature as oil temp, dedicated "battery" instance 2.
 
 
 
@@ -172,7 +194,7 @@ This has been put on hold as the relay board works well other than the charge an
 [ ] Build prototype
 [ ] Test on/off
 [ ] Test other buttons and circuits, under load ideally.
-[ ] Test warning curcuits
+[ ] Test warning circuits
 [ ] Test sensors
 [ ] Test NMEA2000 output
 [ ] Install
